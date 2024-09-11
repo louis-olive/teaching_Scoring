@@ -1,0 +1,90 @@
+---
+title: "Scoring"
+subtitle: "M2 D3S/EGR 2024-2025"
+author: "Louis Olive"
+format: revealjs
+fontsize: 25pt
+---
+
+## Logistics/Prerequisites
+
+* Material available/uploaded at https://github.com/louis-olive/teaching_Scoring
+
+* Email: louis.olive@gmail.com / louis.olive@ut-capitole.fr (copy both)
+
+* Personal or university laptop / Running Rstudio using [Quarto](https://quarto.org/docs/get-started/hello/rstudio.html) or [R Markdown](https://rmarkdown.rstudio.com) for reports
+
+* Basic knowledge of math, statistics / Good command of R 
+
+
+## Agenda
+
+* Part 1 (9h): Methods
+
+* Part 2 (15h): Case study / project by group of students
+
+Throughout the course, the emphasis is put on numerical examples with a hands on / code from scratch approach. 
+
+Codes are given in R.
+
+## Grading
+
+* Part 1 (2 Oct, 2h in class + 1 week take home): 
+
+In-class data analysis on a real data set including data exploration and applications from the course, followed by a take-home assignment with additional tasks (report + R code, 30%).
+
+* Part 2: 
+
+Realization of (in-class case study + take home reports)[Part A] + (project per group of students)[Part B] + Final presentation (Part C)
+(70% = 30% (Part A) + 35% (Part B) + 5% (Part C))
+
+## Agenda - Part 1 (9h): Methods
+
+- Statistical learning goals and vocabulary are defined in the context of scoring and classification (11 Sep).
+
+- Introduction and study of two workhorses: 
+
+    - Logistic Regression: model fit, inference, selection, penalization (11/18 Sep)
+    
+    - Decision Trees for Classification / (Gradient) Boosting (25 Sep)
+
+## Agenda - Part 2 (15h): Case study / project by group of students 
+
+(groups composition due 9 Oct)
+
+- Credit risk is one of the various application of scoring. 
+
+- Part A: Case study using a real life data set, you will be given a set of tasks to perform in group (9, 16, 23 Oct, a short report with current code/analysis due for next week class):
+    
+    - Defining the problem / Getting/Cleansing/Enriching Data / Exploration / Baseline model
+    
+    - Testing various feature engineering (implementing ideas from academic literature on credit risk) / Model evaluation pipeline with tidymodels
+    
+    - Advanced topics: "applied" gradient boosting, dealing with imbalance, model (re)calibration, SHAP/PDP
+
+## Agenda - Part 2 (15h): Case study / project by group of students 
+
+- Part B: In parallel a selection of topics will be proposed to the students with the goal to assess alternative methods (projects choice due 16 Oct): 
+
+    - the reading of selected papers,
+    -	the understanding of the methods or algorithms at stake (if necessary the students will re-implement from scratch a simplified version or give a short proof of key results),
+    -	the implementation of the methods on the real life data set,
+    -	the assessment of the method,
+    -	the writing of a final report summarizing part A / implementing part B (final discussion 6 Nov, final project reports due 17 Nov 23:59).
+
+- Part C: A final presentation (group/one-to-one meeting, 20 Nov).
+     
+## References
+
+* Logistic regression/Scoring:
+
+    Hosmer D.W., Lemeshow S. and Sturdivant  R.X. (2013). Applied Logistic Regression, Wiley.
+
+    Cornillon P.A., Matzner-Løber E., Rouvière L. (2019). Régression avec R, Springer (in French).
+
+* Statistical Learning/Decision Trees/Boosting:
+
+    Hastie T., Tibshirani R. and Friedman. J. (2009). The Elements of Statistical Learning: Data Mining, Inference and Prediction, Springer. [available here](https://hastie.su.domains/ElemStatLearn/printings/ESLII_print12_toc.pdf)
+
+    Lindholm, A. and Wahlström, N., Lindsten, F. and Schön, T. (2022). Machine Learning - A First Course for Engineers and Scientists, Cambridge University Press. [latest draft available here](https://smlbook.org/book/sml-book-draft-latest.pdf)
+
