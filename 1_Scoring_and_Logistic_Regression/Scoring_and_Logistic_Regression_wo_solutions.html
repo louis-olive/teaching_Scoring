@@ -316,7 +316,7 @@ f^*(x)=\left\{ \begin{array}{ll}
 <li><p>the “probabilistic” approach: we estimate the regression function <span class="math inline">\(\eta(x)\)</span> and use/plug this estimate “inside” the Bayes classifier (Plugin); within this approach mainly two sub-approaches:</p>
 <ul>
 <li><p>the “discriminative” approach or conditional density modeling: we directly model or make an assumption on <span class="math inline">\(\eta(X)=\mathbf P_{\mathrm Y | \mathrm X}\)</span> and estimate it; for example we can make the assumption that <span class="math inline">\(\eta(x)\)</span> is a function of a particular form.</p></li>
-<li><p>the “generative” approach: we model the conditional distribution <span class="math inline">\(\mathbf P_{\mathrm X | \mathrm Y}\)</span> and use Bayes formula to get: <span class="math inline">\(\eta(X)=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X]}=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]+\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}\)</span></p></li>
+<li><p>the “generative” approach: we model the conditional distribution <span class="math inline">\(\mathbf P_{\mathrm X | \mathrm Y}\)</span> and use Bayes formula to get: <span class="math inline">\(\eta(X)=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X]}=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]+\mathbb{P}[X|Y=0)]\mathbb{P}[Y=0)]}\)</span></p></li>
 </ul></li>
 <li><p>the optimization or “machine learning” approach: finding <span class="math inline">\(f\)</span> minimizing the empirical risk; optimization algorithm or heuristics are used to estimate <span class="math inline">\(f\)</span>; the 0-1 loss is not convex so usually it is replaced by a convex surrogate loss or upper bound; usually re-sampling methods are used to compute empirical risk (<span class="math inline">\(f\)</span> is trained on a training set and empirical risk evaluated on the testing set, <span class="math inline">\(f\)</span> is chosen to minimize empirical risk).</p></li>
 </ul>
@@ -1362,9 +1362,10 @@ x(s)=P(S(X) \geq s|Y=0)=P(S(X))=P(S(X) \geq s|Y=1)=y(s)
 <p>As said before, a training set will be used to learn a Score <span class="math inline">\(S\)</span> and a testing set to estimate the ROC curve <span class="math inline">\(x(s)\)</span> and <span class="math inline">\(y(s)\)</span> for a range of <span class="math inline">\(s\)</span>.</p>
 <p>In the rest of the course we will be equally interested in binary classification and scoring which are closely linked.</p>
 <p>Throughout the course, we will focus on two fundamental and complementary models: the Logistic Regression model and Decision Trees.</p>
-<p>Logistic Regression employs a “generative” approach to model with a parametric law the joint probability of input <span class="math inline">\(X\)</span> and outputs <span class="math inline">\(Y\)</span> and then estimate the parameters of the regression function.</p>
-<p>On the other hand, Decision Trees adopt a “machine learning” approach, aiming to minimize empirical risk. These models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.</p>
-<p>Moreover these two methods can be combined, see for example this <a href="https://medium.com/criteo-engineering/unity-is-strength-a-story-of-model-composition-49748b1f1347">blog post from Criteo engineering team on combining Logistic Regression and Decision Trees in production</a>.</p>
+<p>Logistic Regression adopts a “probabilistic|discriminative” approach to model with a parametric law the conditional probability <span class="math inline">\(Y|X\)</span> and then estimate the parameters of the regression function.</p>
+<p>On the other hand, Decision Trees adopt a “machine learning” approach, aiming to minimize empirical risk.</p>
+<p>These two models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.</p>
+<p>Moreover these two methods can be combined, see for example this <a href="https://techblog.criteo.com/unity-is-strength-a-story-of-model-composition-49748b1f1347">2020 blog post from Criteo engineering team on combining Logistic Regression and Decision Trees in production</a>.</p>
 </section>
 </section>
 <section id="the-logistic-regression-model" class="level1" data-number="2">
@@ -2597,14 +2598,17 @@ Y|X=x  &amp; =\left\{
 <h2 data-number="3.3" class="anchored" data-anchor-id="other-simulated-data-sets"><span class="header-section-number">3.3</span> Other simulated data sets</h2>
 <p>Simulate other toy data sets, and plot decision boundaries. For example:</p>
 <ul>
-<li>Data set 1:
+<li><p>Data set 1:</p>
 <ul>
-<li>Class 0: mixture of <span class="math inline">\(\begin{bmatrix} 5 &amp; 8 \\ 2 &amp; 3 \end{bmatrix}\)</span> <span class="math inline">\(\begin{bmatrix} 5 &amp; 8 \\ 2 &amp; 3 \end{bmatrix}\)</span></li>
-<li>Class 1: mixture of <span class="math inline">\(\begin{bmatrix} 5 &amp; 8 \\ 2 &amp; 3 \end{bmatrix}\)</span> <span class="math inline">\(\begin{bmatrix} 5 &amp; 8 \\ 2 &amp; 3 \end{bmatrix}\)</span></li>
+<li>Class 0: mixture of <span class="math inline">\(\mu_{0a}=\begin{bmatrix} 1 \\ 4 \end{bmatrix}\)</span>, <span class="math inline">\(\mu_{0b}=\begin{bmatrix} 1 \\ -4 \end{bmatrix}\)</span> <span class="math inline">\(\Sigma_{0a}=\Sigma_{0b}=\begin{bmatrix} 2 &amp; 0 \\ 0 &amp; 2 \end{bmatrix}\)</span></li>
+<li>Class 1: <span class="math inline">\(\mu_{1}=\begin{bmatrix} 4 \\ 0 \end{bmatrix}\)</span> <span class="math inline">\(\Sigma_{1}=\begin{bmatrix} 2 &amp; 0 \\ 0 &amp; 4 \end{bmatrix}\)</span></li>
 </ul></li>
-<li>Data set 2 (generative approach, assumptions of QDA): Given <span class="math inline">\(\mu_0\)</span>, <span class="math inline">\(\mu_1\)</span>, <span class="math inline">\(\Sigma_0\)</span> and <span class="math inline">\(\Sigma_1\)</span> and <span class="math inline">\(X\)</span> having values in <span class="math inline">\(\mathbb R^2\)</span>:</li>
+<li><p>Data set 2 (using a “generative” approach, with same assumptions as QDA): Given <span class="math inline">\(\mu_0\)</span>, <span class="math inline">\(\mu_1\)</span>, <span class="math inline">\(\Sigma_0\)</span> and <span class="math inline">\(\Sigma_1\)</span> and <span class="math inline">\(X\)</span> having values in <span class="math inline">\(\mathbb R^2\)</span>:</p>
+<ul>
+<li><p><span class="math inline">\(X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]\)</span>,</p></li>
+<li><p><span class="math inline">\(X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]\)</span> and <span class="math inline">\(\mathbb{P}[Y=1]=\pi\)</span></p></li>
+</ul></li>
 </ul>
-<p><span class="math inline">\(X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]\)</span> <span class="math inline">\(X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]\)</span> <span class="math inline">\(\mathbb{P}[Y=1]=\pi\)</span></p>
 </section>
 </section>
 <section id="references" class="level1" data-number="4">

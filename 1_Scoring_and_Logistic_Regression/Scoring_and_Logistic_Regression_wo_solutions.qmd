@@ -2043,11 +2043,10 @@ Simulate other toy data sets, and plot decision boundaries. For example:
     -   Class 1: $\mu_{1}=\begin{bmatrix} 4  \\ 0  \end{bmatrix}$ $\Sigma_{1}=\begin{bmatrix} 2 & 0 \\ 0 & 4 \end{bmatrix}$
 -   Data set 2 (using a "generative" approach, with same assumptions as QDA): Given $\mu_0$, $\mu_1$, $\Sigma_0$ and $\Sigma_1$ and $X$ having values in $\mathbb R^2$:
 
-$X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
 
-$X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$,
-and
-$\mathbb{P}[Y=1]=\pi$
+    - $X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
+
+    - $X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$ and $\mathbb{P}[Y=1]=\pi$
 
 # References
 
