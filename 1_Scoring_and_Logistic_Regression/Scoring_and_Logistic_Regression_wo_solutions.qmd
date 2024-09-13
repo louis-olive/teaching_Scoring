@@ -202,8 +202,7 @@ Conceptually two approaches are used[^3]:
 
     - the "discriminative" approach or conditional density modeling: we directly model or make an assumption on $\eta(X)=\mathbf P_{\mathrm Y | \mathrm X}$ and estimate it; for example we can make the assumption that $\eta(x)$ is a function of a particular form.
 
-    - the "generative" approach: we model the conditional distribution $\mathbf P_{\mathrm X | \mathrm Y}$ and use Bayes formula to get: 
-$\eta(X)=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X]}=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]+\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}$
+    - the "generative" approach: we model the conditional distribution $\mathbf P_{\mathrm X | \mathrm Y}$ and use Bayes formula to get: $\eta(X)=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X]}=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]+\mathbb{P}[X|Y=0)]\mathbb{P}[Y=0)]}$
 
 -   the optimization or "machine learning" approach: finding $f$ minimizing the empirical risk; optimization algorithm or heuristics are used to estimate $f$; the 0-1 loss is not convex so usually it is replaced by a convex surrogate loss or upper bound; usually re-sampling methods are used to compute empirical risk ($f$ is trained on a training set and empirical risk evaluated on the testing set, $f$ is chosen to minimize empirical risk). 
 
@@ -1209,11 +1208,13 @@ In the rest of the course we will be equally interested in binary classification
 
 Throughout the course, we will focus on two fundamental and complementary models: the Logistic Regression model and Decision Trees.
 
-Logistic Regression employs a "generative" approach to model with a parametric law the joint probability of input $X$ and outputs $Y$ and then estimate the parameters of the regression function.
+Logistic Regression adopts a "probabilistic|discriminative" approach to model with a parametric law the conditional probability $Y|X$ and then estimate the parameters of the regression function.
 
-On the other hand, Decision Trees adopt a "machine learning" approach, aiming to minimize empirical risk. These models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.
+On the other hand, Decision Trees adopt a "machine learning" approach, aiming to minimize empirical risk. 
 
-Moreover these two methods can be combined, see for example this [blog post from Criteo engineering team on combining Logistic Regression and Decision Trees in production](https://medium.com/criteo-engineering/unity-is-strength-a-story-of-model-composition-49748b1f1347).
+These two models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.
+
+Moreover these two methods can be combined, see for example this [2020 blog post from Criteo engineering team on combining Logistic Regression and Decision Trees in production](https://techblog.criteo.com/unity-is-strength-a-story-of-model-composition-49748b1f1347).
 
 # The Logistic Regression model
 
@@ -2035,20 +2036,17 @@ Calculate the Bayes classifier and the Bayes risk.
 
 ## Other simulated data sets
 
-Simulate other toy data sets, and plot decision boundaries.
-For example:
+Simulate other toy data sets, and plot decision boundaries. For example:
 
-- Data set 1:
-    - Class 0:
-    mixture of $\begin{bmatrix} 5 & 8 \\ 2 & 3 \end{bmatrix}$  $\begin{bmatrix} 5 & 8 \\ 2 & 3 \end{bmatrix}$
-    - Class 1:
-    mixture of $\begin{bmatrix} 5 & 8 \\ 2 & 3 \end{bmatrix}$  $\begin{bmatrix} 5 & 8 \\ 2 & 3 \end{bmatrix}$
+-   Data set 1:
+    -   Class 0: mixture of $\mu_{0a}=\begin{bmatrix} 1  \\ 4  \end{bmatrix}$, $\mu_{0b}=\begin{bmatrix} 1  \\ -4  \end{bmatrix}$ $\Sigma_{0a}=\Sigma_{0b}=\begin{bmatrix} 2 & 0 \\ 0 & 2 \end{bmatrix}$
+    -   Class 1: $\mu_{1}=\begin{bmatrix} 4  \\ 0  \end{bmatrix}$ $\Sigma_{1}=\begin{bmatrix} 2 & 0 \\ 0 & 4 \end{bmatrix}$
+-   Data set 2 (using a "generative" approach, with same assumptions as QDA): Given $\mu_0$, $\mu_1$, $\Sigma_0$ and $\Sigma_1$ and $X$ having values in $\mathbb R^2$:
 
-- Data set 2 (generative approach, assumptions of QDA):
-Given $\mu_0$, $\mu_1$, $\Sigma_0$ and $\Sigma_1$ and $X$ having values in $\mathbb R^2$:
+$X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
 
-$X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$
-$X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$
+$X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$,
+and
 $\mathbb{P}[Y=1]=\pi$
 
 # References
