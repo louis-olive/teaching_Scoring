@@ -257,7 +257,6 @@ ggplot(data_mixture_example) +
     theme_void()
 
 #saveRDS(data_mixture_example, "data_mixture_example.rds")
-
 ```
 
 Knowing the generative distribution, we generate a testing set of size 10k (half BLUE, half ORANGE).
@@ -298,7 +297,11 @@ Knowing the generating distribution we can derive the Bayes classifier (exercise
 We plot the boundary decision in grey:
 
 ```{r}
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 # Prediction function used to classify areas on the grid and imply the decision boundary
 predict_oracle <- function(x1, x2){
@@ -315,13 +318,16 @@ predict_oracle_V <- Vectorize(predict_oracle)
 
 grid <- grid %>% mutate(predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- grid_background %>% mutate(predict_oracle = predict_oracle_V(x1, x2))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_oracle)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_oracle)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -359,14 +365,22 @@ We give below a brief tour showing the decision boundary of common classifiers f
 We plot below the linear decision boundary given by a Logistic Regression vs Bayes, we only display the training set:
 
 ```{r}
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 mixture_example_logit <- glm(Y~., data = data_mixture_example, family = "binomial")
 
-grid <- broom::augment(mixture_example_logit, data = data_mixture_example,
-               newdata = grid, type.predict = "response", type.residuals = "deviance") %>% 
-    mutate(predict_glm = 1*(.fitted >= 0.5),
-           predict_oracle = predict_oracle_V(x1, x2))
+grid <- broom::augment(mixture_example_logit,
+                       data = data_mixture_example,
+                       newdata = grid,
+                       type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_logit, data = data_mixture_example,
+               newdata = grid_background, type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_glm = 1*(.fitted >= 0.5))
 
 coeffs <- mixture_example_logit$coefficients
 
@@ -376,13 +390,14 @@ glm_boundary <- function(x1){
 glm_boundary_V <- Vectorize(glm_boundary) 
 
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_glm)),
-            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_line(aes(x = x1, y = glm_boundary(x1)),col = 'darkgrey') +
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm)),
+            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -390,13 +405,23 @@ theme_void()
 We add a sample (500 additional observations for each class) of the testing set to the preceding graph:
 
 ```{r}
-grid <- broom::augment(mixture_example_logit, 
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_logit <- glm(Y~., data = data_mixture_example, family = "binomial")
+
+grid <- broom::augment(mixture_example_logit,
                        data = data_mixture_example,
                        newdata = grid,
                        type.predict = "response",
                        type.residuals = "deviance") %>% 
-    mutate(predict_glm = 1*(.fitted >= 0.5),
-           predict_oracle = predict_oracle_V(x1, x2))
+    mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_logit, data = data_mixture_example,
+               newdata = grid_background, type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_glm = 1*(.fitted >= 0.5))
 
 coeffs <- mixture_example_logit$coefficients
 
@@ -406,13 +431,14 @@ glm_boundary <- function(x1){
 glm_boundary_V <- Vectorize(glm_boundary) 
 
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_glm)),
-            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_line(aes(x = x1, y = glm_boundary(x1)),col = 'darkgrey') +
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm)),
+            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_point(data = new_mixture[c(1:500,5001:5501),], aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
@@ -447,7 +473,10 @@ library(splines)
 
 ## fit additive natural cubic spline model
 # Additive Natural Cubic Splines - 4 df each (Fig 5.11 p164)
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 mixture_example_glm_splines_add <- glm(Y ~ splines::ns(x1, df=4) + 
                                            splines::ns(x2, df=4),
@@ -462,15 +491,23 @@ grid <- broom::augment(mixture_example_glm_splines_add,
                mutate(predict_gam = 1*(.fitted >= 0.5),
                       predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- broom::augment(mixture_example_glm_splines_add,
+                       data = data_mixture_example,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_gam)),
-            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_contour(aes(x = x1, y = x2, z = predict_gam),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_gam)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -495,10 +532,12 @@ The empirical risk on testing set is `r round(logit_splines_add_risk, 3)`.
 Using the interactions of splines in $x_1$ and $x_2$:
 
 ```{r}
-
 ## fit additive natural cubic spline model
 # Natural Cubic Splines - Tensor Product - 4 df each (Fig 5.11 p164)
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 mixture_example_glm_splines_add_tens <- glm(Y ~ splines::ns(x1, df=4) : # interaction x1/x2
                                                 splines::ns(x2, df=4)-1,
@@ -513,54 +552,28 @@ grid <- broom::augment(mixture_example_glm_splines_add_tens,
                mutate(predict_gam = 1*(.fitted >= 0.5),
                       predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- broom::augment(mixture_example_glm_splines_add_tens,
+                       data = data_mixture_example,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_gam)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_contour(aes(x = x1, y = x2, z = predict_gam),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_gam)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
-
 ```
 
-```{r}
-
-## fit additive natural cubic spline model
-# Natural Cubic Splines - Tensor Product - 4 df each (Fig 5.11 p164)
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
-
-mixture_example_glm_splines_add_tens <- glm(Y ~ splines::ns(x1, df=4) : # interaction x1/x2
-                                                splines::ns(x2, df=4)-1,
-                                            data = data_mixture_example,
-                                            family = "binomial")
-
-grid <- broom::augment(mixture_example_glm_splines_add_tens,
-                       data = data_mixture_example,
-                       newdata = grid,
-                       type.predict = "response",
-                       type.residuals = "deviance") %>% 
-               mutate(predict_gam = 1*(.fitted >= 0.5),
-                      predict_oracle = predict_oracle_V(x1, x2))
-
-ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_gam)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
-geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
-geom_contour(aes(x = x1, y = x2, z = predict_gam),
-             breaks = 0.05, col = 'darkgrey') + 
-geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
-           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
-geom_point(data = new_mixture[c(1:500,5001:5501),], aes(x = x1, y = x2, col = Y),
-           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
-scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
-theme_void()
-
-```
 
 ```{r}
 logit_splines_add_tens_error_rate <- broom::augment(mixture_example_glm_splines_add_tens,
@@ -587,7 +600,10 @@ It is usual, for example in the context of credit scoring or banking, to discret
 Here we use a simple decile binning on $x_1$ and $x_2$:
 
 ```{r}
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 breaks_x1 <- c(quantile(data_mixture_example$x1, probs = seq(0, 1, by = 1/10), na.rm = T))
 breaks_x1[1] <- -1e8
@@ -608,6 +624,16 @@ data_binned <- data_mixture_example %>%
                     ordered_result = TRUE))
 
 grid <- grid %>% 
+    mutate(x1_bin = cut(x1, breaks = breaks_x1,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE),
+           x2_bin = cut(x2, breaks = breaks_x2,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE))
+
+grid_background <- grid_background %>% 
     mutate(x1_bin = cut(x1, breaks = breaks_x1,
                     right = FALSE,
                     dig.lab = 1,
@@ -641,19 +667,26 @@ grid <- broom::augment(mixture_example_glm_binned,
                mutate(predict_glm_binned = 1*(.fitted >= 0.5),
                       predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- broom::augment(mixture_example_glm_binned,
+                       data = data_binned,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_glm_binned = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_glm_binned)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_contour(aes(x = x1, y = x2, z = predict_glm_binned),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm_binned)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
-
-
 ```
 
 ```{r}
@@ -684,9 +717,6 @@ logit_binned_risk <- logit_binned_error_rate  %>%
 
 The empirical risk on testing set is `r round(logit_binned_risk, 3)`.
 
-```{r}
-# Optionnal - plot the graph for logistic regression using  binning + "WOE/IV" feature engineering (TODO if shown in class)
-```
 
 ### K-Nearest Neighbors Algorithm
 
@@ -698,7 +728,10 @@ We show below the boundary decision for $k=15$:
 library(class)
 k <- 15
 
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 # Normalize using boundaries of training sample
 normalize <- FALSE # TRUE (pred error 0.259) / FALSE (pred error 0.2498)
@@ -730,7 +763,12 @@ if (normalize) {
     train_mixture <- data_mixture_example %>%
         select(x1,x2)
     
+    # For boundary decision (fine grid)
     test_grid_mixture <- grid %>%
+          select(x1,x2)
+    
+    # For background (coarse grid)
+    background_grid_mixture <- grid_background %>%
           select(x1,x2)
     
     test_new_mixture <- new_mixture %>%
@@ -748,8 +786,6 @@ table_test <- table(mixture_example_knn,
                         mutate(Y = as_factor(if_else(Y == "BLUE", 0, 1))) %>%
                         pull(Y))
 
-
-
 mixture_example_knn <- knn(train_mixture, #train X
                            train_mixture, # test X = train X
                            data_mixture_example %>% pull(Y), # train Y
@@ -761,7 +797,12 @@ table_train <- table(mixture_example_knn,
 
 
 mixture_example_knn <- knn(train_mixture, #train X
-                           test_grid_mixture, # test X = "dotted" grid for plot
+                           test_grid_mixture, # test X = fine grid for boundary plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+mixture_example_knn_bg <- knn(train_mixture, #train X
+                           background_grid_mixture, # test X = "dotted" grid for plot
                            data_mixture_example %>% pull(Y), # train Y
                            k)
     
@@ -770,15 +811,18 @@ grid <- bind_cols(grid, predict_knn = mixture_example_knn) %>%
     mutate(predict_knn = if_else(mixture_example_knn=='0', 0, 1),
            predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- bind_cols(grid_background, predict_knn = mixture_example_knn_bg) %>%
+    mutate(predict_knn = if_else(mixture_example_knn_bg=='0', 0, 1))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_knn)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') +
 geom_contour(aes(x = x1, y = x2, z = predict_knn),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background, aes(x = x1, y = x2, col = as.factor(predict_knn)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -796,7 +840,10 @@ We show below the boundary decision for $k=7$:
 library(class)
 k <- 7
 
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
 
 # Normalize using boundaries of training sample
 normalize <- FALSE # TRUE (pred error 0.259) / FALSE (pred error 0.2498)
@@ -828,7 +875,12 @@ if (normalize) {
     train_mixture <- data_mixture_example %>%
         select(x1,x2)
     
+    # For boundary decision (fine grid)
     test_grid_mixture <- grid %>%
+          select(x1,x2)
+    
+    # For background (coarse grid)
+    background_grid_mixture <- grid_background %>%
           select(x1,x2)
     
     test_new_mixture <- new_mixture %>%
@@ -846,8 +898,6 @@ table_test <- table(mixture_example_knn,
                         mutate(Y = as_factor(if_else(Y == "BLUE", 0, 1))) %>%
                         pull(Y))
 
-
-
 mixture_example_knn <- knn(train_mixture, #train X
                            train_mixture, # test X = train X
                            data_mixture_example %>% pull(Y), # train Y
@@ -859,7 +909,12 @@ table_train <- table(mixture_example_knn,
 
 
 mixture_example_knn <- knn(train_mixture, #train X
-                           test_grid_mixture, # test X = "dotted" grid for plot
+                           test_grid_mixture, # test X = fine grid for boundary plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+mixture_example_knn_bg <- knn(train_mixture, #train X
+                           background_grid_mixture, # test X = "dotted" grid for plot
                            data_mixture_example %>% pull(Y), # train Y
                            k)
     
@@ -868,15 +923,18 @@ grid <- bind_cols(grid, predict_knn = mixture_example_knn) %>%
     mutate(predict_knn = if_else(mixture_example_knn=='0', 0, 1),
            predict_oracle = predict_oracle_V(x1, x2))
 
+grid_background <- bind_cols(grid_background, predict_knn = mixture_example_knn_bg) %>%
+    mutate(predict_knn = if_else(mixture_example_knn_bg=='0', 0, 1))
+
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_knn)),
-           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') +
 geom_contour(aes(x = x1, y = x2, z = predict_knn),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background, aes(x = x1, y = x2, col = as.factor(predict_knn)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -960,11 +1018,22 @@ To finish our tour, we show the result of a recursive partition of the plan usin
 library(rpart)
 library(rpart.plot) 
 
-grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
 mixture_example_CART <- rpart(Y~., data = data_mixture_example, method = "class")
 
 grid <- bind_cols(grid,
-                  as_tibble(predict(mixture_example_CART,newdata = grid))) %>%
+                  as_tibble(predict(mixture_example_CART, newdata = grid))) %>%
+                    select(-`0`) %>% 
+                    rename(predict_CART = `1`) %>% 
+                    mutate(predict_CART = 1*(predict_CART >= 0.5),
+                    predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- bind_cols(grid_background,
+                    as_tibble(predict(mixture_example_CART, newdata = grid_background))) %>%
                     select(-`0`) %>% 
                     rename(predict_CART = `1`) %>% 
                     mutate(predict_CART = 1*(predict_CART >= 0.5),
@@ -975,14 +1044,15 @@ rpart.plot(mixture_example_CART)
 
 ```{r}
 ggplot(grid) + 
-geom_point(aes(x = x1, y = x2, col = as.factor(predict_CART)),
-               shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 geom_contour(aes(x = x1, y = x2, z = predict_oracle),
-             breaks = 0.05, col = 'purple') + 
+             breaks = 0.5, col = 'purple') + 
 geom_contour(aes(x = x1, y = x2, z = predict_CART),
-             breaks = 0.05, col = 'darkgrey') + 
+             breaks = 0.5, col = 'darkgrey') + 
 geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
            shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_CART)),
+               shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
 scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
@@ -1806,7 +1876,7 @@ $$
 \end{array} \right.
 $$
 
-and \$\hat{\mathrm {R}}(p\_\beta) \$ is the empirical risk on the training set.
+and $\hat{\mathrm {R}}(p_\beta)$ is the empirical risk on the training set.
 
 Estimating $\beta$ by maximizing the log-likelihood is equivalent to minimizing with respect to $\beta$ the empirical risk of $p_\beta$ for the logistic loss. Note that usually in the context of machine learning and logistic loss, the output $Y$ is relabeled to $\{-1,1\}$.
 
@@ -2047,6 +2117,7 @@ Simulate other toy data sets, and plot decision boundaries. For example:
     - $X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
 
     - $X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$ and $\mathbb{P}[Y=1]=\pi$
+    
 
 # References
 

@@ -1,0 +1,2853 @@
+---
+title: "Scoring and Logistic Regression"
+author: "Louis OLIVE"
+bibliography: references.bib
+link-citations: true
+format:
+  html:
+    theme: 
+       light: cerulean
+    # theme: darkly
+    # highlight: espresso
+    code-copy: true
+    code-fold: true
+    df-print: paged
+    include-in-header: mathjax.html
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+    toc-location: left
+    fontsize: 10pt
+    mainfont: "Helvetica Neue"
+execute: 
+  #cache: true
+  warning: false
+editor: visual
+fontsize: 11pt
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+```
+
+# Introduction and vocabulary
+
+## A reminder (or not) on Supervised Learning
+
+This an informal overview of Statistical Learning, where we introduce concepts and definitions. For a rigorous introduction see for example the dedicated lesson from [Sébastien Gadat - D3S M1 course on Mathematical Statistics](https://perso.math.univ-toulouse.fr/gadat/files/2012/12/Intro_Stat_Learning.pdf) or [Francis Bach - Learning Theory from First Principles](https://www.di.ens.fr/%7Efbach/ltfp_book.pdf).
+
+### Inputs-Outputs
+
+We follow here the terminology of @hastie2009. The problem: we are given a data set where some variables, denoted as **inputs**[^1], have some influence on one or more **output(s)**[^2].
+
+[^1]: In statistics, inputs are often called the predictors, factors or the independent variables. In machine learning the term features is also used.
+
+[^2]: The outputs are also called responses, labels or dependent variables.
+
+We will denote inputs by the symbol $X$ having values in $\mathrm{X}$ (to explicit things we will consider $\mathrm X$ is $\mathbb R^p$). If $X$ is a vector, its components can be accessed by subscripts $X_j$, $j = 1, . . . , p$.
+
+Outputs will be denoted by $Y$ having value in $\mathrm Y$:
+
+### Supervised learning framework
+
+-   When $\mathrm Y$ is $\mathbb R$, it is a **regression problem**;
+
+-   When $\mathrm Y$ is a discrete set, it is a **classification problem** (for example $\mathrm Y$ is $\{0,1\}$ for binary classification).
+
+In this course we will restrict to the case of **binary classification**.
+
+We need data to construct predictions or classifications. We suppose we have available a set of observed data:
+
+$(x_i, y_i) \in \mathrm X \times \mathrm Y$ , $i = 1, \cdots ,n$, known as the **learning** or **training** set, with which to construct our prediction.
+
+We assume $(x_i, y_i) \in \mathrm X \times \mathrm Y$ are generated i.i.d. from:
+
+$$
+\mathbf P_{\mathrm X \times \mathrm Y}
+$$
+
+where we denote $\mathbf P_{\mathrm X \times \mathrm Y}$, the data generating distribution (or underlying probability distribution or joint law) which is unknown.
+
+The main goal of supervised learning will be to predict unobserved outputs $y$ given unobserved inputs $x$ using the learning set.
+
+Such new or unobserved data is referred as the **testing** set.
+
+### Loss and Risk
+
+To achieve that goal we try to find a "best" or optimal **classifier** (or prediction function in general):
+
+$$
+f: \mathrm X \to \mathrm Y
+$$
+
+We first must define some criterion to assess the classifier performance (what is optimal?).
+
+For that purpose we consider a **loss** function $\ell: \mathrm Y \times \mathrm Y \to \mathbb R^+$:
+
+$$
+\left\{ \begin{array}{ll} 
+    \ell(y,z) > 0 &  \mbox{if } y \neq z\cr
+    \ell(y,z) = 0 &  \mbox{if } y = z\cr
+\end{array} \right.
+$$
+
+$\ell(y,f(x))$ is the loss or cost of predicting $f(x)$ while the true output is $y$.
+
+In the context of binary classification a natural selection for loss is the 0-1 loss:
+
+$$
+\ell(y,z)=\mathbf 1_{y \neq z}
+$$
+
+We will see later in the course that other losses are used.
+
+We then define the expected **risk** of a prediction function $f$ given the loss $\ell$ as:
+
+$$
+\mathrm R(f) = \mathbb{E}[\ell(Y,f(X))]
+$$ In the context of binary classification $Y \in \{0,1\}$ and 0-1 loss, we have:
+
+$$
+\mathrm R(f) = \mathbb{P}[Y\neq f(X))]
+$$
+
+Given a data set $(x_i, y_i) \in \mathrm X \times \mathrm Y$, we also define the empirical risk of a classifier $f$ as:
+
+$$
+\hat{\mathrm R}(f) = \frac{1}{n} \sum_i \ell(y_i,f(x_i))
+$$
+
+### Bayes classifier
+
+We now define the **Bayes(ian) classifier** $f^*: \mathrm X \to \mathrm Y$ as a function that achieves the minimal expected risk among all possible functions:
+
+$$
+\underset{f}{\operatorname{argmin}}\mathrm R(f) 
+$$
+
+It is sometimes designed as oracle in the literature.
+
+The Bayes classifier depends on $\ell$ and $\mathbf P_{\mathrm X \times \mathrm Y}$ which is generally unknown (otherwise the job would be easy).
+
+The Bayes classifier for the 0-1 loss is:
+
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \eta(x)\geq \frac{1}{2}\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+
+where:
+
+$$
+\eta(x)=\mathbb{P}[Y=1|X=x)] = \mathbb{E}[Y=1|X=x)]
+$$
+
+$\eta(x)$ is called the regression function.
+
+::: {.callout-note collapse="true"}
+#### Proof
+
+Given $f$ a classifier:
+
+Using 0-1 loss definition: $$
+\begin{align*}
+\mathrm R(f)  &= \mathbb{E}_{X,Y}[\ell(Y,f(X))] \\
+&=\mathbb{E}_{X,Y}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1} ] \\
+&= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\ 
+\end{align*}
+$$ Using "Tower Rule" conditioning on $X$ then using $\eta(X)$ definition: $$
+\begin{align*}
+&= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\ 
+&= \mathbb{E}_{X}[\mathbf 1_{f(X)=0}\mathbb{E}_{Y|X}[\mathbf 1_{Y=1}] + \mathbf 1_{f(X)=1} \mathbb{E}_{Y|X}[\mathbf 1_{Y=0}|X]] \\
+&=\mathbb{E}_{X}[\mathbf 1_{f(X)=0}\eta(X) + \mathbf 1_{f(X)=1} (1-\eta(X))] \\
+&=\mathbb{E}_{X}[(1-\mathbf 1_{f(X)=1})\eta(X) + \mathbf 1_{f(X)=1} (1-\eta(X))] \\
+&=\mathbb{E}_{X}[(\mathbf 1_{f(X)=1}(1-2\eta(X))] + \mathbb{E}_{X}[\eta(X))] \\
+\end{align*}
+$$ To minimize the risk with respect to $f$:
+
+-   if $1-2\eta(X) \leq0$ (ie $\eta(X) \geq \frac{1}{2}$), we need $f(X)=1$
+
+-   if $1-2\eta(X) \geq0$ (ie $\eta(X) \leq \frac{1}{2}$), we need $f(X)=0$
+
+It is mostly how was defined $f^*$ before:
+
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \eta(x)\geq \frac{1}{2}\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+:::
+
+### Theory vs practice
+
+In practice $\mathbf P_{\mathrm X \times \mathrm Y}$ is unknown. What we have is the learning set. The Bayes classifier minimizes the expected risk but is not a function of the learning set. What to do?
+
+Conceptually two approaches are used[^3]:
+
+[^3]: Here I use a high level explanation which is very elegantly detailed in Sébastien Gadat - TSE - Maths of Deep and Machine Learning course [here](https://perso.math.univ-toulouse.fr/gadat/files/2012/12/Note-25-oct.-2022.pdf); Other good references are Philippe Rigollet - MIT - 18.657: Mathematics of Machine Learning [here](https://ocw.mit.edu/courses/18-657-mathematics-of-machine-learning-fall-2015/81406c87dccb9e873cfafa876a4d69c3_MIT18_657F15_LecNote.pdf) or Erwan Le Pennec - Polytechnique - Introduction to Machine Learning (M2 MSV) [slides here](http://www.cmap.polytechnique.fr/~lepennec/files/MSV/MLMethods_Adv%20-%20MSV%20-%2023.pdf).
+
+-   the "probabilistic" approach: we estimate the regression function $\eta(x)$ and use/plug this estimate "inside" the Bayes classifier (Plugin); within this approach mainly two sub-approaches:
+
+    -   the "discriminative" approach or conditional density modeling: we directly model or make an assumption on $\eta(X)=\mathbf P_{\mathrm Y | \mathrm X}$ and estimate it; for example we can make the assumption that $\eta(x)$ is a function of a particular form.
+
+    -   the "generative" approach: we model the conditional distribution $\mathbf P_{\mathrm X | \mathrm Y}$ and use Bayes formula to get: $\eta(X)=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X]}=\frac{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]}{\mathbb{P}[X|Y=1)]\mathbb{P}[Y=1)]+\mathbb{P}[X|Y=0)]\mathbb{P}[Y=0)]}$
+
+-   the optimization or "machine learning" approach: finding $f$ minimizing the empirical risk; optimization algorithm or heuristics are used to estimate $f$; the 0-1 loss is not convex so usually it is replaced by a convex surrogate loss or upper bound; usually re-sampling methods are used to compute empirical risk ($f$ is trained on a training set and empirical risk evaluated on the testing set, $f$ is chosen to minimize empirical risk).
+
+We will see later that in the context of the Logistic Regression the two approaches are strongly linked: it can be seen as a probabilistic\|discriminative approach or a optimization approach.
+
+## Illustrative example: the **Mixture** data set
+
+To illustrate what we have seen we use the **Mixture** data set described in @hastie2009 [p. 12-16].
+
+The data set is generated as follows (p. 16):
+
+-   First the authors generate 10 "means" $m_k$ in $\mathbb R^2$ from a bivariate Gaussian distribution $\mathcal{N}((1,0),I)$ and label this class *BLUE*.
+
+-   Similarly, 10 more are drawn from $\mathcal{N}((0,1),I)$ and labeled *ORANGE*.
+
+-   Then for each class authors generate 100 observations as follows: for each observation, $m_k$ is picked at random with probability $\frac{1}{10}$ and used to generate a $\mathcal{N}(m_k,I/5)$, thus leading to a mixture of Gaussian clusters for each class. They generate similarly an additional data set of 5k observations per class for testing purposes.
+
+The task is to create a classifier that, based on the coordinates $x_1$ and $x_2$, determines whether the point is *ORANGE* or *BLUE*.
+
+First we load the data set and plot the "means":
+
+```{r}
+# Simulated mixture (ORANGE/BLUE) from ESLII/ISLR
+load(file='../data/mixture.example.RData')
+
+x1_means <- mixture.example$means[,1]
+x2_means <- mixture.example$means[,2]
+mixture_means <- tibble(x1_means, x2_means) %>%
+    rowid_to_column() %>%
+    mutate(Y = if_else(rowid <= 10, "BLUE", "ORANGE"))
+
+ggplot(mixture_means) + 
+    geom_point(aes(x = x1_means, y = x2_means, col = Y), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    theme_void()
+
+# saveRDS(mixture_means, "mixture_means.rds")
+```
+
+Then the training set together with the "means":
+
+```{r}
+Y = mixture.example$y
+x1 = mixture.example$x[,1]
+x2 = mixture.example$x[,2]
+data_mixture_example <- tibble(Y, x1, x2) %>% mutate(Y = as_factor(Y))
+
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    geom_point(data = mixture_means, aes(x = x1_means, y = x2_means, col =Y), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
+    theme_void()
+
+#saveRDS(data_mixture_example, "data_mixture_example.rds")
+
+```
+
+Knowing the generative distribution, we generate a testing set of size 10k (half BLUE, half ORANGE).
+
+```{r}
+# generate new sampling
+set.seed(1987)
+N <- 10000
+draw <- sample(1:10, size=N, replace=TRUE)
+x1_blue <- rnorm(N/2) * 1/sqrt(5) + mixture_means[draw[1:(N/2)],2]
+x2_blue <- rnorm(N/2) * 1/sqrt(5) + mixture_means[draw[1:(N/2)],3]
+x1_orange <- rnorm(N/2) * 1/sqrt(5) + mixture_means[10 + draw[(N/2+1):N],2]
+x2_orange <- rnorm(N/2) * 1/sqrt(5) + mixture_means[10 + draw[(N/2+1):N],3]
+
+new_mixture <- rbind(cbind(x1_blue, x2_blue, Y="BLUE"), cbind(x1_orange, x2_orange, Y="ORANGE")) %>%
+    as_tibble() %>% 
+    rename(x1=x1_means, x2=x2_means)
+
+# head(new_mixture)
+```
+
+We plot the first 250 new observations of each class from the generated testing set:
+
+```{r}
+ggplot(new_mixture[c(1:250,5001:5251),]) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    geom_point(data = mixture_means, aes(x = x1_means, y = x2_means, col =Y), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
+    theme_void()
+# saveRDS(new_mixture, "new_mixture.rds")
+# new_mixture <- readRDS("new_mixture.rds")
+```
+
+### Bayes classifier
+
+Knowing the generating distribution we can derive the Bayes classifier (exercise 2.2 [@hastie2009]).
+
+We plot the boundary decision in grey:
+
+```{r}
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+# Prediction function used to classify areas on the grid and imply the decision boundary
+# explicit expression for the Bayes decision boundary
+predict_oracle <- function(x1, x2){
+    obj <- 0
+    for(i in 1:10){
+       obj <- obj +
+           exp(-5/2*((x1-x1_means[i])**2+(x2-x2_means[i])**2)) -
+           exp(-5/2*((x1-x1_means[i+10])**2+(x2-x2_means[i+10])**2))
+    }
+    1 * (obj < 0)
+}
+
+predict_oracle_V <- Vectorize(predict_oracle)
+
+grid <- grid %>% mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- grid_background %>% mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_oracle)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+We estimate Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots) using the data generating process $\mathbf P_{\mathrm X \times \mathrm Y}$.
+
+```{r}
+bayes_error_rate <- new_mixture %>%
+    mutate(Y = if_else(Y=="BLUE", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_test_risk <- bayes_error_rate %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+
+bayes_error_rate_train <- data_mixture_example %>%
+    mutate(Y = if_else(Y=="0", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_train_risk <- bayes_error_rate_train %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+```
+
+We get a value of `r round(bayes_test_risk,3)` for the "estimated" Bayes risk, which is in line with [@hastie2009 Figure 13.4], see below:
+
+![](images/bayeserror_mixture.png){fig-align="center" width="700"}
+
+We give below a brief tour showing the decision boundary of common classifiers for the Mixture data set.
+
+### Logistic Regression classifier
+
+We plot below the linear decision boundary given by a Logistic Regression vs Bayes, we only display the training set:
+
+```{r}
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_logit <- glm(Y~., data = data_mixture_example, family = "binomial")
+
+grid <- broom::augment(mixture_example_logit,
+                       data = data_mixture_example,
+                       newdata = grid,
+                       type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_logit, data = data_mixture_example,
+               newdata = grid_background, type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_glm = 1*(.fitted >= 0.5))
+
+coeffs <- mixture_example_logit$coefficients
+
+glm_boundary <- function(x1){
+    -(coeffs[2] * x1 + coeffs[1]) / coeffs[3]
+}
+glm_boundary_V <- Vectorize(glm_boundary) 
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_line(aes(x = x1, y = glm_boundary(x1)),col = 'darkgrey') +
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm)),
+            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+We add a sample (500 additional observations for each class) of the testing set to the preceding graph:
+
+```{r}
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_logit <- glm(Y~., data = data_mixture_example, family = "binomial")
+
+grid <- broom::augment(mixture_example_logit,
+                       data = data_mixture_example,
+                       newdata = grid,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+    mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_logit, data = data_mixture_example,
+               newdata = grid_background, type.predict = "response", type.residuals = "deviance") %>% 
+    mutate(predict_glm = 1*(.fitted >= 0.5))
+
+coeffs <- mixture_example_logit$coefficients
+
+glm_boundary <- function(x1){
+    -(coeffs[2] * x1 + coeffs[1]) / coeffs[3]
+}
+glm_boundary_V <- Vectorize(glm_boundary) 
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_line(aes(x = x1, y = glm_boundary(x1)),col = 'darkgrey') +
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm)),
+            shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+geom_point(data = new_mixture[c(1:500,5001:5501),], aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+logit_error_rate <- broom::augment(mixture_example_logit,
+                                   data = data_mixture_example,
+                                   newdata = new_mixture,
+                                   type.predict = "response",
+                                   type.residuals = "deviance") %>% 
+                    mutate(Y = if_else(Y == "BLUE", 0, 1),
+                           predict_glm = 1*(.fitted >= 0.5),
+                           l01 = if_else(Y==predict_glm, 0, 1))
+
+logit_risk <- logit_error_rate %>% summarise(l01 = mean(l01)) %>% pull(l01)
+```
+
+The empirical risk on testing set is `r round(logit_risk, 3)`.
+
+### Nonparametric (splines) Logistic Regression classifier
+
+A popular method to move beyond linearity is to transform variables, for example using splines [@hastie2009 5.6 Nonparametric Logistic Regression, p161-164].
+
+This can achieve more flexibility at the decision boundary.
+
+Using natural splines in $x_1$ and $x_2$:
+
+```{r}
+library(splines)
+
+## fit additive natural cubic spline model
+# Additive Natural Cubic Splines - 4 df each (Fig 5.11 p164)
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_glm_splines_add <- glm(Y ~ splines::ns(x1, df=4) + 
+                                           splines::ns(x2, df=4),
+                                       data = data_mixture_example,
+                                       family = "binomial")
+
+grid <- broom::augment(mixture_example_glm_splines_add,
+                       data = data_mixture_example,
+                       newdata = grid,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_glm_splines_add,
+                       data = data_mixture_example,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_contour(aes(x = x1, y = x2, z = predict_gam),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_gam)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+logit_splines_add_error_rate <- broom::augment(mixture_example_glm_splines_add,
+                                   data = data_mixture_example,
+                                   newdata = new_mixture,
+                                   type.predict = "response",
+                                   type.residuals = "deviance") %>% 
+                                mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                       predict_glm = 1*(.fitted >= 0.5),
+                                       l01 = if_else(Y==predict_glm, 0, 1))
+
+logit_splines_add_risk <- logit_splines_add_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01)
+```
+
+The empirical risk on testing set is `r round(logit_splines_add_risk, 3)`.
+
+Using the interactions of splines in $x_1$ and $x_2$:
+
+```{r}
+## fit additive natural cubic spline model
+# Natural Cubic Splines - Tensor Product - 4 df each (Fig 5.11 p164)
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_glm_splines_add_tens <- glm(Y ~ splines::ns(x1, df=4) : # interaction x1/x2
+                                                splines::ns(x2, df=4)-1,
+                                            data = data_mixture_example,
+                                            family = "binomial")
+
+grid <- broom::augment(mixture_example_glm_splines_add_tens,
+                       data = data_mixture_example,
+                       newdata = grid,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_glm_splines_add_tens,
+                       data = data_mixture_example,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_gam = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_contour(aes(x = x1, y = x2, z = predict_gam),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_gam)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+
+```{r}
+logit_splines_add_tens_error_rate <- broom::augment(mixture_example_glm_splines_add_tens,
+                                   data = data_mixture_example,
+                                   newdata = new_mixture,
+                                   type.predict = "response",
+                                   type.residuals = "deviance") %>% 
+                                   mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                          predict_glm = 1*(.fitted >= 0.5),
+                                          l01 = if_else(Y==predict_glm, 0, 1))
+
+logit_splines_add_tens_risk <- logit_splines_add_tens_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01)
+
+```
+
+The empirical risk on testing set is `r round(logit_splines_add_tens_risk, 3)`.
+
+### Logistic regression with binning:
+
+It is usual, for example in the context of credit scoring or banking, to discretize or categorize numerical variables (a.k.a binning).
+
+Here we use a simple decile binning on $x_1$ and $x_2$:
+
+```{r}
+# fine grid for predictions/decision boundaries
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures (little dots)
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+breaks_x1 <- c(quantile(data_mixture_example$x1, probs = seq(0, 1, by = 1/10), na.rm = T))
+breaks_x1[1] <- -1e8
+breaks_x1[length(breaks_x1)] <- 1e8
+
+breaks_x2 <- c(quantile(data_mixture_example$x2, probs = seq(0, 1, by = 1/10), na.rm = T))
+breaks_x2[1] <- -1e8
+breaks_x2[length(breaks_x2)] <- 1e8
+
+data_binned <- data_mixture_example %>% 
+    mutate(x1_bin = cut(x1, breaks = breaks_x1,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE),
+           x2_bin = cut(x2, breaks = breaks_x2,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE))
+
+grid <- grid %>% 
+    mutate(x1_bin = cut(x1, breaks = breaks_x1,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE),
+           x2_bin = cut(x2, breaks = breaks_x2,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE))
+
+grid_background <- grid_background %>% 
+    mutate(x1_bin = cut(x1, breaks = breaks_x1,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE),
+           x2_bin = cut(x2, breaks = breaks_x2,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE))
+
+# from https://search.r-project.org/R/refmans/base/html/cut.html
+# x1_labs <- levels(data_binned$x1_bin)
+# x2_labs <- levels(data_binned$x2_bin)
+
+#(,] 
+# cbind(lower = as.numeric( sub("\\((.+),.*", "\\1", x1_labs) ),
+#       upper = as.numeric( sub("[^,]*,([^]]*)\\]", "\\1", x1_labs) ))
+
+#[,)
+# x1_bounds <- bind_cols(lower = as.numeric( sub("\\[(.+),.*", "\\1", x1_labs) ),
+                # upper = as.numeric( sub("[^,]*,([^\\)]*)(\\)|])", "\\1", x1_labs) ))
+
+mixture_example_glm_binned <- glm(Y ~ x1_bin + x2_bin,
+                                            data = data_binned,
+                                            family = "binomial")
+
+grid <- broom::augment(mixture_example_glm_binned,
+                       data = data_binned,
+                       newdata = grid,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_glm_binned = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- broom::augment(mixture_example_glm_binned,
+                       data = data_binned,
+                       newdata = grid_background,
+                       type.predict = "response",
+                       type.residuals = "deviance") %>% 
+               mutate(predict_glm_binned = 1*(.fitted >= 0.5),
+                      predict_oracle = predict_oracle_V(x1, x2))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_contour(aes(x = x1, y = x2, z = predict_glm_binned),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_glm_binned)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+new_mixture_binned <- new_mixture %>% 
+    mutate(x1_bin = cut(x1, breaks = breaks_x1,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE),
+           x2_bin = cut(x2, breaks = breaks_x2,
+                    right = FALSE,
+                    dig.lab = 1,
+                    ordered_result = TRUE))
+
+
+logit_binned_error_rate <- broom::augment(mixture_example_glm_binned,
+                                   data = data_binned,
+                                   newdata = new_mixture_binned,
+                                   type.predict = "response",
+                                   type.residuals = "deviance") %>% 
+                                mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                       predict_glm = 1*(.fitted >= 0.5),
+                                       l01 = if_else(Y==predict_glm, 0, 1))
+
+logit_binned_risk <- logit_binned_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01)
+```
+
+The empirical risk on testing set is `r round(logit_binned_risk, 3)`.
+
+
+### K-Nearest Neighbors Algorithm
+
+k-NN is a non-parametric algorithm. Given a new observation, it finds in the training set the k closest points (given a certain distance) and predicts using a majority vote.
+
+We show below the boundary decision for $k=15$:
+
+```{r}
+library(class)
+k <- 15
+
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+# Normalize using boundaries of training sample
+normalize <- FALSE # TRUE (pred error 0.259) / FALSE (pred error 0.2498)
+
+if (normalize) {
+    
+    min1 <- min(data_mixture_example$x1)
+    min2 <- min(data_mixture_example$x2)
+    max1 <- max(data_mixture_example$x1)
+    max2 <- max(data_mixture_example$x2)
+    
+    train_mixture <- data_mixture_example %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+    test_grid_mixture <- grid %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+    test_new_mixture <- new_mixture %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+} else {
+    
+    train_mixture <- data_mixture_example %>%
+        select(x1,x2)
+    
+    # For boundary decision (fine grid)
+    test_grid_mixture <- grid %>%
+          select(x1,x2)
+    
+    # For background (coarse grid)
+    background_grid_mixture <- grid_background %>%
+          select(x1,x2)
+    
+    test_new_mixture <- new_mixture %>%
+        select(x1,x2)
+    
+}
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           test_new_mixture, # test X
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+table_test <- table(mixture_example_knn,
+                     new_mixture %>% # test Y
+                        mutate(Y = as_factor(if_else(Y == "BLUE", 0, 1))) %>%
+                        pull(Y))
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           train_mixture, # test X = train X
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+
+table_train <- table(mixture_example_knn,
+      data_mixture_example %>% pull(Y))
+
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           test_grid_mixture, # test X = fine grid for boundary plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+mixture_example_knn_bg <- knn(train_mixture, #train X
+                           background_grid_mixture, # test X = "dotted" grid for plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+    
+
+grid <- bind_cols(grid, predict_knn = mixture_example_knn) %>%
+    mutate(predict_knn = if_else(mixture_example_knn=='0', 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- bind_cols(grid_background, predict_knn = mixture_example_knn_bg) %>%
+    mutate(predict_knn = if_else(mixture_example_knn_bg=='0', 0, 1))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') +
+geom_contour(aes(x = x1, y = x2, z = predict_knn),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background, aes(x = x1, y = x2, col = as.factor(predict_knn)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+knn_error_rate <- (table_test[[2]] + table_test[[3]]) /
+(table_test[[1]] + table_test[[2]] + table_test[[3]] + table_test[[4]])
+```
+
+The empirical risk on testing set is `r round(knn_error_rate, 3)`.
+
+We show below the boundary decision for $k=7$:
+
+```{r}
+library(class)
+k <- 7
+
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+# Normalize using boundaries of training sample
+normalize <- FALSE # TRUE (pred error 0.259) / FALSE (pred error 0.2498)
+
+if (normalize) {
+    
+    min1 <- min(data_mixture_example$x1)
+    min2 <- min(data_mixture_example$x2)
+    max1 <- max(data_mixture_example$x1)
+    max2 <- max(data_mixture_example$x2)
+    
+    train_mixture <- data_mixture_example %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+    test_grid_mixture <- grid %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+    test_new_mixture <- new_mixture %>% 
+        mutate(x1 = (x1 - min1) / (max1 - min1),
+               x2 = (x2 - min2) / (max2 - min2)) %>% 
+        select(x1, x2)
+    
+} else {
+    
+    train_mixture <- data_mixture_example %>%
+        select(x1,x2)
+    
+    # For boundary decision (fine grid)
+    test_grid_mixture <- grid %>%
+          select(x1,x2)
+    
+    # For background (coarse grid)
+    background_grid_mixture <- grid_background %>%
+          select(x1,x2)
+    
+    test_new_mixture <- new_mixture %>%
+        select(x1,x2)
+    
+}
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           test_new_mixture, # test X
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+table_test <- table(mixture_example_knn,
+                     new_mixture %>% # test Y
+                        mutate(Y = as_factor(if_else(Y == "BLUE", 0, 1))) %>%
+                        pull(Y))
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           train_mixture, # test X = train X
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+
+table_train <- table(mixture_example_knn,
+      data_mixture_example %>% pull(Y))
+
+
+mixture_example_knn <- knn(train_mixture, #train X
+                           test_grid_mixture, # test X = fine grid for boundary plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+
+mixture_example_knn_bg <- knn(train_mixture, #train X
+                           background_grid_mixture, # test X = "dotted" grid for plot
+                           data_mixture_example %>% pull(Y), # train Y
+                           k)
+    
+
+grid <- bind_cols(grid, predict_knn = mixture_example_knn) %>%
+    mutate(predict_knn = if_else(mixture_example_knn=='0', 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- bind_cols(grid_background, predict_knn = mixture_example_knn_bg) %>%
+    mutate(predict_knn = if_else(mixture_example_knn_bg=='0', 0, 1))
+
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') +
+geom_contour(aes(x = x1, y = x2, z = predict_knn),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background, aes(x = x1, y = x2, col = as.factor(predict_knn)),
+           shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+knn_error_rate <- (table_test[[2]] + table_test[[3]]) /
+(table_test[[1]] + table_test[[2]] + table_test[[3]] + table_test[[4]])
+```
+
+The empirical risk on testing set is `r round(knn_error_rate, 3)`.
+
+We vary $k$ and show the empirical risks on training and testing sets together with Bayes risk:
+
+```{r}
+K = seq(100,1,-1)
+
+misclass_curve <- list()
+
+for (k in K){
+    
+    knn_test <- knn(train_mixture, #train X
+                    test_new_mixture, # test X
+                    data_mixture_example %>% pull(Y), # train Y
+                    k)
+    
+    knn_train <- knn(train_mixture, #train X
+                     train_mixture, # test X = train X
+                     data_mixture_example %>% pull(Y), # train Y
+                     k)
+    
+    table_test <- table(knn_test,
+                        new_mixture %>% # test Y
+                        mutate(Y = as_factor(if_else(Y == "BLUE", 0, 1))) %>%
+                        pull(Y))
+
+    test_error <- (table_test[[2]] + table_test[[3]]) / 
+        (table_test[[1]] + table_test[[2]] + table_test[[3]] + table_test[[4]])
+    
+    table_train <- table(knn_train,
+          data_mixture_example %>% pull(Y))
+
+    train_error <- (table_train[[2]] + table_train[[3]]) / 
+        (table_train[[1]] + table_train[[2]] + table_train[[3]] + table_train[[4]])
+    
+    misclass_curve[[k]] <- tibble(`k - Number of Nearest Neighbours` = k,
+                                  `KNN train` = train_error,
+                                  `KNN test` = test_error)
+    
+}
+
+misclass_plot <- bind_rows(misclass_curve) %>% 
+    mutate(`Bayes test` = bayes_test_risk,
+           `Bayes train` = bayes_train_risk) %>% 
+    pivot_longer(-`k - Number of Nearest Neighbours`,
+                 names_to = "Model data",
+                 values_to = "Prediction Error")
+```
+
+```{r, message = FALSE}
+library(scales)
+
+ggplot(misclass_plot) +
+geom_line(aes(x = `k - Number of Nearest Neighbours`,
+              y = `Prediction Error`,
+              col = as.factor(`Model data`))) +
+    scale_x_continuous(
+        trans = scales::compose_trans("log10", "reverse"),
+        breaks = c(100, 50, 15, 3, 1)) +
+scale_colour_manual(values = c("purple", "green", "orange", "dodgerblue")) +
+theme_bw() +
+labs(col = NULL)
+
+```
+
+### Decision Trees (CART)
+
+To finish our tour, we show the result of a recursive partition of the plan using Decision Trees techniques:
+
+```{r}
+library(rpart)
+library(rpart.plot) 
+
+# fine grid for predictions
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .01), x2 = seq(-2.0, 2.9, .01)) %>% as_tibble()
+# coarse grid for mimicking ESL figures
+grid_background <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+mixture_example_CART <- rpart(Y~., data = data_mixture_example, method = "class")
+
+grid <- bind_cols(grid,
+                  as_tibble(predict(mixture_example_CART, newdata = grid))) %>%
+                    select(-`0`) %>% 
+                    rename(predict_CART = `1`) %>% 
+                    mutate(predict_CART = 1*(predict_CART >= 0.5),
+                    predict_oracle = predict_oracle_V(x1, x2))
+
+grid_background <- bind_cols(grid_background,
+                    as_tibble(predict(mixture_example_CART, newdata = grid_background))) %>%
+                    select(-`0`) %>% 
+                    rename(predict_CART = `1`) %>% 
+                    mutate(predict_CART = 1*(predict_CART >= 0.5),
+                    predict_oracle = predict_oracle_V(x1, x2))
+
+# rpart.plot(mixture_example_CART)
+# using nicer low-level function prp to change nodes color / labels etc
+mixture_example_CART_plot <- rpart(Y~.,
+                                   data = data_mixture_example %>%
+                                          mutate(Y = if_else(Y=="0", "BLUE", "ORANGE")),
+                                   method = "class")
+prp(mixture_example_CART_plot, type = 2, extra = 4, fallen.leaves = TRUE, 
+    box.col = c("dodgerblue", "orange")[mixture_example_CART$frame$yval],
+    # we indicate both Class 0-1 probabilities and number of observations for each node
+    node.fun = function(x, labs, digits, varlen) paste(labs, "\n", "B/O: ", x$frame$yval2[,2], " - ", x$frame$yval2[,3]))
+```
+
+```{r}
+ggplot(grid) + 
+geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+             breaks = 0.5, col = 'purple') + 
+geom_contour(aes(x = x1, y = x2, z = predict_CART),
+             breaks = 0.5, col = 'darkgrey') + 
+geom_point(data = data_mixture_example, aes(x = x1, y = x2, col = Y),
+           shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+geom_point(data = grid_background,
+           aes(x = x1, y = x2, col = as.factor(predict_CART)),
+               shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+scale_colour_manual(values = c("dodgerblue", "orange")) +
+theme_void()
+```
+
+```{r}
+cart_error_rate <- bind_cols(new_mixture,
+                          tibble(class = predict(mixture_example_CART,
+                                                 newdata = new_mixture,
+                                                 type = "class")),
+                          tibble(prob = predict(mixture_example_CART,
+                                                 newdata = new_mixture,
+                                                 type = "prob")[, 2])) %>%
+                        #  as_tibble()) %>% 
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+cart_risk <- cart_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01)
+```
+
+The empirical risk on testing set is `r round(cart_risk, 3)`.
+
+To play further and make nicer animated 2D decision boundaries for binary classifiers see these two blogs [here](https://mathformachines.com/posts/decision/) and [here](https://paulvanderlaken.com/2020/01/20/animated-machine-learning-classifiers/). Please also note that the `scikit-learn` `Python` library implements methods to display [decision boundaries for classifiers](https://scikit-learn.org/stable/modules/generated/sklearn.inspection.DecisionBoundaryDisplay.html).
+
+## Scoring
+
+At last we come to the subject of our course!
+
+We remind we are in the context of binary classification.
+
+Often we (and the business) are more interested in estimating the probabilities that $Y$ belongs to each class.
+
+Quoting Trevor Hastie: "For example, it is more valuable to have an estimate of the probability that an insurance claim is fraudulent, than a classification fraudulent or not." This applies to many uses cases:
+
+-   propensity score: is a customer interested by a product or service ? will the user click on the ad?
+
+-   behavioral score: may a customer encounter a delinquency, a bankruptcy ?
+
+-   application score: is the bank ready to grant a loan or a credit card to a customer to authorize a given transaction ?
+
+-   churn score: will a newly acquired customer stay long enough for the account to be profitable ?
+
+-   fraud score : is an application or a transaction fraudulent?
+
+Scoring has business implications and is used as a decision tool for risk assessment or costs reduction:
+
+-   improve the rate of return of marketing campaigns : reach more receptive customers without increasing the number of mailings or reach as many receptive customers with smaller mailings
+
+-   improve efficiency of credit decisions : treat faster customers with low score and concentrate attention on customers with medium score
+
+-   increase homogeneity of decisions across sales managers, and across applications
+
+-   reduce the number of overdue
+
+-   also used for pricing (adapt price to risk)
+
+Before teaching this course I understood "Scoring" as applied classification with business perspective (i.e. Credit scoring for banks).
+
+But we will see that this is more subtle than that, and that there is a precise definition of Scoring.
+
+We follow in the rest of the section the terminology of @cornillon2019 [chapter 11.6 "Prévision - scoring"].
+
+The aim of Scoring is to find a Scoring function or Score $S: \mathbb R^p \to \mathbb R$ that is "high" in case $\mathbb{P}[Y=1|X=x)$ is "high" and "low" in case $\mathbb{P}[Y=0|X=x)$ is "high".
+
+We say that $S(x)$ is the score of the observation $x \in \mathbb R^p$.
+
+We show below a simplified example of a credit scorecard that were typically used by banks to assess the creditworthiness of consumer loans applicants (as shown in [@scoringThomas]):
+
+![](images/scoring_scorecard.png){fig-align="center" width="350"}
+
+In this example a 35-year-old owner wishing to borrow money for home improvement and that has never had a county court judgement (CCJ) will score $129 = (36+25+36+32)$, while a 20-year-old living with his parents borrowing for holiday and having more than £1200 of CCJ will score $38=(22+14+19-17)$.
+
+Some remarks:
+
+-   the notions of Score and classifier are closely linked. Given a Score $S$ and a cutoff $s \in \mathbb R$ we obtain the following classifier:
+
+$$
+f_s(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } S(x)\geq s\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+
+-   The values taken by $S(x)$ are less important than the way they will order a set of observation $x_1,...x_n$. For any $\phi: \mathbb R \to \mathbb R$ bijective and increasing function, we say that the scores $S$ and $\phi \circ S$ are equivalent.
+
+-   We defined above, in the context of supervised learning, the regression function $\eta(x)=\mathbb{P}[Y=1|X=x)]$. It is a natural candidate for a Scoring function. The related Bayes classifier uses $s=\frac{1}{2}$ as cutoff. As we have just seen in the last sections, $\eta(x)$ is unknown and we will have to approximate or estimate this regression function using the training set.
+
+There are many ways to assess the performance of a Score.
+
+We first define the **confusion matrix**:
+
+|       | $f_s(X)=0$ | $f_s(X)=1$ |     |
+|:------|:----------:|:----------:|:---:|
+| $Y=0$ |     TN     |     FP     |  N  |
+| $Y=1$ |     FN     |     TP     |  P  |
+
+: {.bordered}
+
+The [confusion matrix](https://en.wikipedia.org/wiki/Confusion_matrix) is a contingency table which cross-tabulates $Y$ with the predicted one $f_s(X)$.
+
+It can be evaluated on the learning set as well as on the testing set.
+
+The following vocabulary originates from medical applications:
+
+-   true positive (TP)
+
+-   true negative (TN),
+
+-   false positive (FP), also Type I error
+
+-   false negative (FN), also Type II error
+
+More formally we define for a given cutoff $s$:
+
+$$
+\alpha(s)=\mathbf P(f_s(X)=1|Y=0)=P(S(X) \geq s|Y=0)
+$$
+
+and
+
+$$
+\beta(s)=\mathbf P(f_s(X)=0|Y=1)=P(S(X) < s|Y=1)
+$$
+
+$\alpha(s)$ is called **false positive** rate and $\beta(s)$ **false negative** rate. Similarly **specificity** and **sensitivity** are defined:
+
+$$
+sp(s)=P(S(X) < s|Y=0) = 1 - \alpha(s)
+$$
+
+and
+
+$$
+se(s)=P(S(X) \geq s|Y=1) = 1 - \beta(s)
+$$
+
+The ROC (Receiver Operating Characteristic) curve allows to visualize $\alpha$ and $\beta$ on a same graph for all $s$ allowing to choose the cutoff and compare different Scores.
+
+Precisely, the ROC curve of a Score $S$ is a parametric curve of the variable $s$:
+
+$$
+\begin{array}{ll} 
+    ROC:&\mathbb R \to [0,1]^2 \cr
+        & s \to (x(s)=\alpha(s),y(s)=1-\beta(s))\cr
+\end{array}
+$$
+
+For a given Score $S$, the ROC curve passes through the points $(0,0)$ and $(1,1)$, which corresponds to classifying all observations as $0$ ($s\to \infty$) or $1$ ($s\to -\infty$).
+
+We now define two special cases:
+
+A Score $S$ is said to be **perfect** if $s^*$ exists such that:
+
+$$
+P(Y=1|S(X) \geq s^*) = 1
+$$ and $$
+P(Y=0|S(X) < s^*) = 1
+$$
+
+It corresponds to $x(s^*)=0$ and $y(s^*)=1$ (using the preceding definitions and Bayes rule).
+
+For example:
+
+$$
+x(s^*)=P(S(X) \geq s^*|Y=0)=\frac{P(Y=0|S(X) \geq s^*)P(S(X) \geq s^*)}{P(Y=0)}=0
+$$
+
+Similarly: for $s \leq s^*$ we have $x(s)=0$ and for $s > s^*$ we have $y(s)=1$.
+
+A score $S$ is said to be **random** if $S(X)$ and $Y$ are independent. In such case:
+
+$$
+x(s)=P(S(X) \geq s|Y=0)=P(S(X))=P(S(X) \geq s|Y=1)=y(s)
+$$
+
+The ROC curve for a random score is the first bisector $(0,0)$ to $(1,1)$.
+
+@fig-roc-perfect-random shows the two curves.
+
+```{r, warning=FALSE}
+#| label: fig-roc-perfect-random
+#| fig-cap: "ROC curves of a perfect Score (solid, blue) and a random Score (dashed, orange)"
+
+
+perfect_score_label = "s=s^{\\*}"
+temp <- expression("s="~rho == 0.34)
+
+ggplot() +
+    geom_segment(aes(x = 0, y = 0, xend = 0, yend = 1), col="dodgerblue", linewidth = 2) + # perfect score vert
+    geom_segment(aes(x = 0, y = 1, xend = 1, yend = 1), col="dodgerblue", linewidth = 2) + # perfect score horiz
+    geom_segment(aes(x = 0, y = 0, xend = 1, yend = 1), col="orange", linetype = 2, linewidth = 1.5) + # random score
+    # annotate perfect score
+    annotate("segment", x = 0.05, y = 0.95, xend = 0, yend = 1,
+             arrow = arrow(type = "closed", length = unit(0.02, "npc"))) +
+    annotate("text", x=0.08,y=0.92, label = 's == "s*"', parse=TRUE) +
+    # -Inf
+    annotate("segment", x = 0.95, y = 0.95, xend = 1, yend = 1,
+             arrow = arrow(type = "closed", length = unit(0.02, "npc")))+
+    annotate("text", x=0.92,y=0.92, label = expression(s==-infinity), parse=TRUE) +
+    # +Inf
+    annotate("segment", x = 0.05, y = 0.05, xend = 0, yend = 0,
+             arrow = arrow(type = "closed", length = unit(0.02, "npc")))+
+    annotate("text", x=0.08,y=0.08, label = expression(s==infinity), parse=TRUE) +
+    coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), expand = FALSE) +
+    labs(x = "false positives", y = "true positives") +
+    theme_bw() 
+
+```
+
+The ROC curves can be summarized to generate numeric criteria such as the AUC (Area Under Curve).
+
+The AUC will be $1$ for the perfect Score and $0.5$ for the random Score and can be used to rapidly compare two Scores.
+
+It is considered better than other point-wise criteria.
+
+However we must keep in mind that the AUC as a summary criterion presents some drawbacks since two Scores can have the same AUC but behave very differently in the plane.
+
+In practice we do not know the probabilities $x(s)$ and $y(s)$ to define the ROC curve.
+
+As said before, a training set will be used to learn a Score $S$ and a testing set to estimate the ROC curve $x(s)$ and $y(s)$ for a range of $s$.
+
+In the rest of the course we will be equally interested in binary classification and scoring which are closely linked.
+
+Throughout the course, we will focus on two fundamental and complementary models: the Logistic Regression model and Decision Trees.
+
+Logistic Regression adopts a "probabilistic|discriminative" approach to model with a parametric law the conditional probability $Y|X$ and then estimate the parameters of the regression function.
+
+On the other hand, Decision Trees adopt a "machine learning" approach, aiming to minimize empirical risk. 
+
+These two models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.
+
+Moreover these two methods can be combined, see for example this [2020 blog post from Criteo engineering team on combining Logistic Regression and Decision Trees in production](https://techblog.criteo.com/unity-is-strength-a-story-of-model-composition-49748b1f1347).
+
+# The Logistic Regression model
+
+## Informal introductory example
+
+We provide here some intuitions leading to the Logistic Regression model using a simulated data set from @islr2021 (the **Default** data set).
+
+This is a toy data set used for teaching purposes containing information on ten thousand customers.
+
+The aim here is to assess which customers will ***default*** on their credit card debt (the target or response variable) based on the current credit card ***balance*** and other individual characteristics (the predictors or feature vector).
+
+This is a binary classification problem as the ***default*** variable takes value in a discrete set (here binary). In the following we will denote $Y$ the output or response variable and $X = (X_0,X_1,\cdots,X_{p-1})^{T}$ the feature vector or inputs.
+
+The approach we follow is similar to [@hosmer2013] or [@cornillon2019]. Both books use a similar example: the presence or absence of a Coronary Heart Disease (CHD) is explained with the age of an individual (the data set *chdage* is available in companion package *aplore3*).
+
+We can start to explore the Default data with a scatterplot (@fig-default_balance-scatterplot) of the target variable (***default***) with respect to a predictor (***balance***):
+
+```{r}
+#| label: fig-default_balance-scatterplot
+#| fig-cap: "Scatterplot of variable ***default*** with respect to credit card ***balance*** for 10000 customers"
+
+# Default data set (simulated) from ESLII/ISLR
+default_data <- ISLR2::Default %>%
+    as_tibble()
+
+ggplot(default_data, aes(x=balance, y=default)) +
+geom_point(alpha=0.2)
+```
+
+In this scatterplot, all points fall on one of two parallel lines representing the absence (No) or occurrence (Yes) of ***default***. We "jitter" the data vertically to avoid overplotting. The plot below shows that the response variable is imbalanced towards the absence of default:
+
+```{r}
+ggplot(default_data, aes(x=balance, y=default)) +
+geom_jitter(alpha=0.2, height=0.2)
+```
+
+We also show the boxplots of credit cards ***balance*** with respect to ***default*** status:
+
+```{r}
+#| label: fig-balance_default-boxplot
+#| fig-cap: "Variable ***balance*** with respect to ***default*** status"
+ggplot(default_data,
+       aes(x=default, y=balance)) +
+geom_boxplot()
+```
+
+We can see from @fig-default_balance-scatterplot and @fig-balance_default-boxplot that default tends to be more prevalent for accounts with a high balance. However it is difficult to guess a simple relationship between default and balance.
+
+To investigate further we discretise the balance variables by classes of width $300\$$ and compute the mean of response variable (***default*** is Yes) within each balance class:
+
+```{r, message = FALSE}
+class_width <- 300
+(default_data_binned <- default_data %>%
+    mutate(balance_bins = cut(balance, breaks = seq(0, 3000, class_width),
+                              right = FALSE, dig.lab = 4),
+           min = floor(balance / class_width) * class_width,
+           max = if_else(balance == 0 , 1, 
+                         # customers with 0$ balance should be long to [0, width) class
+                         # or be excluded
+                         ceiling(balance / class_width))  * class_width) %>% 
+    group_by(balance_bins, min, max, default) %>% 
+    summarize(n=n()) %>% 
+    ungroup() %>% 
+    pivot_wider(names_from = default, values_from = n) %>%
+    replace_na(list(Yes = 0, No = 0)) %>% 
+    mutate(`Mean(default)` = round(Yes / (Yes + No), 4)))
+```
+
+In the following we map, by convention and for better readability, the response variable $Y \in\{Yes, No\}$ to $\{0, 1\}$:
+
+$$
+Y = \left\{ \begin{array}{ll} 
+    1&  \mbox{if customer defaulted on its credit card (ie default=Yes)}\cr
+    0&  \mbox{otherwise}.
+    \end{array} \right.
+$$
+
+Then we plot the mean of default (in red) within each balance class (of width $300\$$):
+
+```{r}
+#| label: fig-balance_default-scatterplot-occurrence
+#| fig-cap: "Mean occurrence of ***default*** within ***balance*** classes"
+
+(default_occurrence <- 
+ ggplot(default_data %>% mutate(default = if_else(default == "Yes", 1, 0)), aes(x=balance, y=default)) +
+ geom_point(alpha=0.2) +
+ geom_segment(data = default_data_binned,
+              aes(x = min, xend = max, y = `Mean(default)`, yend = `Mean(default)`),
+              color = 'coral',
+              linewidth=1.25))
+```
+
+The relationship between the mean occurrence of ***default*** and ***balance*** is easier to read.
+
+@fig-balance_default-scatterplot-occurrence clearly shows that as balance increases, the proportion of customers defaulting on their credit card increases.
+
+We also notice that the mean default occurrence with respect to balance classes follows a kind of "S"-shaped curve or **sigmoid** function. Note that the shape depends on classes width and might change.
+
+Going further and informally, considering that the mean of default occurrence is an estimate of $\mathbf{E}[Y|X=x]$ for each balance classes an idea would be to model:
+
+$$
+ \mathbb{E}[Y|X=x] = \mu_\beta(x)
+$$
+
+where $\mu_\beta$ is a **sigmoid** function in $[0,1]$.
+
+The Logistic Regression model uses the **sigmoid** function $\sigma: x \to\sigma(x)=\frac{e^{x}} { 1 + e^{x} }$ also known as logistic function.
+
+```{r}
+(default_occurrence +
+ geom_smooth(method = "glm", 
+             formula = y ~ x,
+             method.args = list(family = "binomial"), 
+             se = FALSE,
+             col = "dodgerblue",
+             linetype = "dotted") +
+ geom_segment(data = default_data_binned,
+              aes(x = min, xend = max, y = `Mean(default)`, yend = `Mean(default)`),
+              color = 'coral',
+              linewidth=1.25))
+```
+
+Another approach would have been to treat $Y$ as a quantitative response variable and fit a simple linear model:
+
+```{r}
+linear <- lm(default ~ balance, data = default_data %>% mutate(default = if_else(default == "Yes", 1, 0)))
+#summary(linear)
+coeff_lm <- linear$coefficients
+alpha <- coeff_lm["(Intercept)"]
+beta <- coeff_lm["balance"]
+```
+
+```{r, warning = FALSE}
+#| label: fig-balance_default-scatterplot-lmfit
+#| fig-cap: "Fitting a linear model, ***default*** is treated as a quantitative response variable"
+
+(ggplot(default_data %>% mutate(default = if_else(default == "Yes", 1, 0)), aes(x=balance, y=default)) +
+ geom_point(alpha=0.2) +
+ geom_segment(data = default_data_binned,
+              aes(x = min, xend = max, y = `Mean(default)`, yend = `Mean(default)`),
+              color = 'coral',
+              size=1.25)+
+ geom_line(data = tibble(x = seq(0,3000, 300)) %>%
+               mutate(y = alpha + beta * x),
+           aes(x = x, y = y),
+           color = 'darkolivegreen',
+           linetype = 'dotted'))
+ # Alternatively we could have used the geom_smooth command
+ # geom_smooth(method = "lm", 
+ #             formula = y ~ x,
+ #             se = FALSE,
+ #             col = "darkolivegreen",
+ #             linetype = "dotted")
+
+```
+
+@fig-balance_default-scatterplot-lmfit shows that a linear model fails to fit the data. In particular, for low credit card balances the linear model shows a "negative probability of default". This is quite prominent here as response variable is imbalanced towards the No default category. For the same reasons, the least square method fails to correctly fit the category of interest (less than 0.25 probability).
+
+Usually in such presentation (for example @hosmer2013) data is more balanced and a linear model approximately fits the two classes. However in any case a linear model cannot confine the predicted value to $[0, 1]$ for all observations of predictors.
+
+## A more formal definition
+
+We use the concepts we have defined in the first part of this lesson. The problem we are facing trying to predict the output default ($Y \in \{0,1\}$) using a training set of inputs or feature vector $X$ is a binary classification problem.
+
+We remind that to estimate an optimal classifier for output $Y \in \{0,1\}$ using input $X = (X_1,\cdots,X_p)$ one approach was to:
+
+-   model the conditional distribution $Y|X$,
+
+-   estimate $\eta(x)$ with:
+
+$$
+\eta(x)=\mathbb{P}[Y=1|X=x)] = \mathbb{E}[Y=1|X=x)]
+$$
+
+-   $\eta(x)$ can be used as a Scoring function (ROC curve, choice of cutoff $s$)
+
+-   and we can use the classifier (usually $s=\frac{1}{2}$) to predict output $Y$:
+
+$$
+f_s(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \eta(x)\geq s\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+
+In the case of **Logistic Regression** classifier, we model:
+
+$$
+Y|X=x~ \sim B(\eta(x))
+$$
+
+with
+
+$$
+\eta(x)=\sigma(x^T\beta) =\frac{exp(x^T\beta)}{1+exp(x^T\beta)}
+$$
+
+for some parameter $\beta=(\beta_1,\cdots,\beta_p)\in \mathbb R^p$, usually $x_1=1$ and $\beta_1$ is an intercept. $\sigma$ is the sigmoid logistic function we have seen before.
+
+In the literature is usual to denote $\eta(X)=p_{\beta}(X)$ or $\eta(X)=\pi_{\beta}(X)$.
+
+From now, we will use the notation $p_{\beta}(X)$.
+
+Defining $\mathrm{logit}: x \to \log\bigg( \frac{x}{1-x}\bigg)$ we have:
+
+$$
+\mathrm{logit}(p_{\beta}(X))=X^T\beta
+$$
+
+::: {.callout-tip icon="false"}
+## The **Logistic Regression** model:
+
+We are given $(x_i, y_i) \in \mathbb R^p \times \{0,1\}$, $i=1,\cdots,n$
+
+The Logistic Regression model assumes that outputs $y_i$ are independent Bernoulli with parameter $p_{\beta}(x_i)$ depending on $x_i$:
+
+$$
+\mathrm{logit}(p_{\beta}(x_i))=x_i^T\beta
+$$
+:::
+
+The Logistic Regression model defined above is a special case of more general family of models, the so-called Generalized Linear Models (GLM).
+
+The family of GLM extends the applicability of linear-model ideas to data where responses are binary (e.g. Logistic Regression) or counts (e.g. Poisson Regression), among further possibilities. The concept emerged with Nelder and Wedderburn and has been studied extensively (see @nelder1972 or @cornillon2019) .
+
+The syntax to fit the Logistic model in R using `glm()` is:
+
+$$
+\mathtt{glm(} \mathrm{y} \sim \mathrm{~x,~}\mathtt{data=}~\mathrm{dataframe,~}\mathtt{family~=~binomial(link~=~"logit")}
+$$
+
+The formula $\mathrm{y} \sim \mathrm{x}$ depicts the model (i.e. inputs are $X$, output is $Y$) and the `data=` argument points to the training set contained in a R dataframe (or tibble). This is quite similar to the `lm()` function.
+
+We also need to specify the distribution for the conditional $Y$ values (binomial) and the link function (logit) via the `family=` argument.
+
+For our example:
+
+```{r}
+#| code-fold: show
+glm_default <- glm(default ~ 1 + student + balance + income,
+                   data = default_data,
+                   family = binomial(link = "logit"))
+
+glm_default <- glm(default ~ .,
+                   data = default_data,
+                   family = "binomial") # by default: link = "logit"
+ 
+```
+
+The command `summary` produces result summaries of the fitted model:
+
+```{r}
+#| code-fold: show
+summary(glm_default)
+```
+
+We will see later how to interpret or understand what is printed
+
+A coefficient-wise output of the model can be obtained as a `tibble` using `tidy()` from package `broom`:
+
+```{r}
+broom::tidy(glm_default)
+```
+
+Based on this output, the fitted model is (we have re-scaled balance and income for better readability):
+
+$$
+\log \bigg( \frac{p_{\beta}(x_i)}{1 - p_{\beta}(x_i)}\bigg) = -1.09 - 0.65(\mathbb{1}_{\mathrm{student}_i=\mathrm{Yes}}) + 5.74(\frac{\mathrm{balance}_i}{1000})+ 0.03(\frac{\mathrm{income}_i}{10000})
+$$
+
+## Estimation
+
+### Maximum Likelihood Estimation
+
+We are given $(x_i, y_i) \in \mathbb R^p \times \{0,1\}$, $i=1,\cdots,n$ where outputs $y_i$ are independent Bernoulli with parameter $p_{\beta}(x_i)$ depending on $x_i$:
+
+$$
+\mathrm{logit}(p_{\beta}(x_i))=x_i^T\beta
+$$
+
+The parameters $\beta$ of the Logistic Regression model are usually determined using Maximum Likelihood Estimation (MLE). It consists on finding $\beta$ for which the joint probability of the observed data is greatest.
+
+As $y_i$ are independent, the likelihood function (joint probability) is the product of the probability mass functions:
+
+$$
+L(Y,\beta) = \prod_{i=1}^n p_{\beta}(x_i)^{y_i}(1-p_{\beta}(x_i))^{1-y_i}
+$$ with $Y=(y_1,\cdots,y_n)$ and $\beta=(\beta_1,\cdots,\beta_p)$.
+
+We seek to maximize the likelihood function over $\beta$, it is equivalent but easier to maximize the log-likelihood:
+
+$$
+\begin{align}
+\ell(Y,\beta)=\log L(Y,\beta) &=\sum_{i=1}^n \left(y_i \log(p_{\beta}(x_i))+(1-y_i) \log(1- p_{\beta}(x_i))\right) \\
+                              &=\sum_{i=1}^{n} \left(y_i \log(\frac{p_{\beta}(x_i)}{1-p_{\beta}(x_i)})+\log(1- p_{\beta}(x_i))\right) \\ 
+                              &=\sum_{i=1}^{n} \left(y_i x_i^T\beta -\log(1 + \exp(x_i^T\beta)\right)
+\end{align} 
+$$
+
+If the MLE $\hat\beta$ exists, the gradient of log-likelihood satisfies (first order necessary condition):
+
+$$
+\nabla\ell(Y,\beta)=\left(\frac{\partial \ell(Y,\beta)}{\partial \beta_1}, \cdots,\frac{\partial \ell(Y,\beta)}{\partial \beta_p}\right)=\mathbf 0
+$$
+
+We have for $j=1,\cdots,p$:
+
+$$
+\frac{\partial \ell(Y,\beta)}{\partial \beta_j}=\sum_{i=1}^{n} \left(y_i x_{ij} -x_{ij}\frac{\exp(x_i^T\beta)}{1+\exp(x_i^T\beta)}\right)=\sum_{i=1}^{n} x_{ij} \left(y_i- p_{\beta}(x_i)\right)
+$$
+
+In vector form:
+
+$$
+\nabla\ell(Y,\beta)=\sum_{i=1}^{n} x_{i} \left(y_i- p_{\beta}(x_i)\right)=X^T(Y-P_{\beta})
+$$
+
+where:
+
+$$
+\begin{align}
+X = \begin{pmatrix}
+x_{11} & \cdots & x_{1p} \\
+x_{21} & \cdots & x_{2p} \\
+\vdots  & \vdots  & \vdots   \\
+x_{n1} & \cdots & x_{np} 
+\end{pmatrix} = 
+\begin{pmatrix}
+ x_1^T\\
+ x_2^T\\
+\vdots \\
+ x_n^T
+\end{pmatrix}\in \mathbb{R}^{n\times (p)}, \quad
+Y = \begin{pmatrix}
+y_{1} \\
+y_{2}\\
+\vdots \\
+y_{n}  
+\end{pmatrix} \quad and \quad
+P_{\beta} = \begin{pmatrix}
+p_{\beta}(x_1) \\
+p_{\beta}(x_2)\\
+\vdots \\
+p_{\beta}(x_n)  
+\end{pmatrix} 
+\end{align}
+$$
+
+In the literature $\nabla\ell(Y,\beta)$ is denoted as the Fisher's score function $S(\beta)$, if the MLE $\hat\beta$ exists, we have:
+
+$$
+S(\hat\beta)=\nabla\ell(Y,\hat\beta)=X^T(Y-P_{\hat\beta})=0
+$$
+
+Solving this equation involves solving $p$ non-linear equations in $\beta$:
+
+$$
+y_1 x_{1j} + \cdots + y_n x_{nj} = x_{1j}\frac{\exp(x_1^T\beta)}{1+\exp(x_1^T\beta)}+ \cdots + x_{nj}\frac{\exp(x_n^T\beta)}{1+\exp(x_n^T\beta)},\quad j=1,\cdots,p
+$$
+
+### Numerical methods
+
+In practice we use numerical methods to solve these non-linear equations as no closed-form solution exist.
+
+If we assume that $rank(X)=p$, we will have that $S(\beta)$ is concave in $\beta$; hence if we find a local maximum it is a global maximum.
+
+We have for $(k,l) \in (1,\cdots,p)^2$:
+
+$$
+\begin{align}
+\frac{\partial\mathcal \ell}{\partial\beta_k\partial\beta_l}(\beta)= & \frac{\partial}{\partial\beta_k}
+\sum_{i=1}^nx_{il}(y_i-\frac{\exp(x_i^T\beta)}{1+\exp(x_i^T\beta)}) \\
+=& -\sum_{i=1}^nx_{il}x_{ik}\frac{\exp(x_i^T\beta)}{(1+\exp(x_i^T\beta))^2} \\
+=& -\sum_{i=1}^nx_{ik}p_\beta(x_i)(1-p_\beta(x_i))x_{il}
+\end{align}
+$$
+
+We obtain that in matrix form:
+
+$$
+H(\beta)=\nabla^2\ell(Y,\beta)=-X^T W_\beta X
+$$
+
+where:
+
+$$
+\begin{align}
+W_\beta = \begin{pmatrix}
+p_\beta(x_1)(1-p_\beta(x_1)) & \cdots & \cdots\\
+\vdots  & \ddots & \vdots \\
+\cdots  & \cdots & p_\beta(x_n)(1-p_\beta(x_n))
+\end{pmatrix}
+\end{align} 
+$$
+
+We have $p_\beta(x_i)(1-p_\beta(x_i))\geq0$ hence $W(\beta)$ is semi-definite negative and since $rank(X)=p$, $H(\beta)$ is concave.
+
+It is shown in [@albert1984a] that if additionally there is no complete separation in the training set: ![](images/unique_mle.png){fig-align="center"}
+
+then the MLE exists and is unique.
+
+#### The Newton-Raphson (a.k.a. Fisher Scoring) method
+
+In practice the Newton-Raphson method is used to solve the equation:
+
+$$
+S(\beta)=\nabla\ell(Y,\beta)=X^T(Y-P_{\beta})=0
+$$
+
+Using Taylor expansion of Score $S(\beta)$:
+
+$$
+S(\hat\beta) \approx S(\beta^{(k)})+H(\beta^{(k)})(\hat\beta-\beta^{(k)})
+$$ and starting from an initial guess of $\beta=\beta_0$, the Newton-Raphson update formula is:
+
+$$
+\beta^{(k+1)} = \beta^{(k)} - H^{-1}(\beta^{(k)})S(\beta^{(k)})
+$$
+
+We show below a naive implementation of Newton-Raphson method to estimate $\beta$ (also known as Fisher Scoring algorithm in the context of Logistic Regression)
+
+```{r}
+#| code-fold: show
+# We put the data frame in matrix form
+# also adding an intercept
+X <- cbind(rep(1, nrow(default_data)),
+                          as.matrix(default_data %>% select(balance, income))) 
+colnames(X) <-  c("(Intercept)", "balance", "income")
+n <- nrow(X)
+
+# We extract the output as vector
+Y <- default_data %>% mutate(default = if_else(default=='Yes', 1, 0)) %>% pull(default)
+
+
+# We set an initial guess for beta and criterion for stopping
+beta <- c(0.01, 0.0, 0.0)
+nb_iter <- 25
+tol <- 1e-5
+
+lr_solve <- function(X, Y, beta, nb_iter, tol){
+    for(i in 1:nb_iter){
+        # first compute p_beta(X)
+        p_beta <- exp(X %*% beta) / (1 + exp(X %*% beta))
+        
+        # then the Score
+        Score_beta <- t(X) %*% (Y-p_beta)
+        
+        # and the Hessian
+        W_beta <- matrix(0, n, n)
+        diag(W_beta) <- p_beta*(1-p_beta)
+        
+        Hessian_beta <- -t(X) %*% W_beta %*% X
+        
+        # we update beta
+        new_beta <- beta - solve(Hessian_beta) %*% Score_beta
+        
+        # we check for convergence
+        if(t(beta-new_beta) %*% (beta-new_beta) < tol){
+            return(list(beta = beta, hessian = Hessian_beta, nb_iter = i)) 
+        }
+        beta <- new_beta
+    }
+    return(list(beta = beta, hessian = Hessian_beta, nb_iter = i)) 
+}
+
+sol <- lr_solve(X, Y, beta, nb_iter, tol)
+```
+
+We verify that R `glm()` and our Newton-Raphson algorithm give comparable coefficients:
+
+-   Newton-Raphson:
+
+```{r}
+as_tibble(t(sol$beta))
+```
+
+-   R `glm()`:
+
+```{r}
+glm_bal_inc <- glm(default ~ balance + income,
+                 data = default_data,
+                 family = "binomial")
+
+as_tibble(t(coef(glm_bal_inc )))
+```
+
+In the next lesson we will try to understand the outputs of the `glm()` function from a statistical viewpoint.
+
+#### The Iterative Reweighted Least Square (IRLS) method
+
+There is an equivalent approach to the the Newton-Raphson described in the literature as Iterative Reweighted Least Square (IRLS).
+
+The Newton-Raphson update formula rewrites:
+
+$$
+\begin{align}
+\beta^{(k+1)} &= \beta^{(k)} - H^{-1}(\beta^{(k)})S(\beta^{(k)}) \\
+&=\beta^{(k)} + (X^TW_{\beta^{(k)}}X)^{-1}X^T(Y-P_{\beta^{(k)}}) \\
+&= (X^TW_{\beta^{(k)}}X)^{-1}(X^TW_{\beta^{(k)}}X)\beta^{(k)} + (X^TW_{\beta^{(k)}}X)^{-1}X^T(Y-P_{\beta^{(k)}}) \\ 
+&= (X^TW_{\beta^{(k)}}X)^{-1}X^TW_{\beta^{(k)}}\left(X\beta^{(k)}+W_{\beta^{(k)}}^{-1}(Y-P_{\beta^{(k)}}) \right) \\
+&= (X^TW_{\beta^{(k)}}X)^{-1}X^TW_{\beta^{(k)}}Z_{\beta^{(k)}} \\
+\end{align}
+$$
+
+where:
+
+$$
+Z_{\beta^{(k)}}= X\beta^{(k)}+W_{\beta^{(k)}}^{-1}(Y-P_{\beta^{(k)}})
+$$
+
+$\beta^{(k+1)} = (X^TW_{\beta^{(k)}}X)^{-1}X^TW_{\beta^{(k)}}Z_{\beta{(k)}}$ corresponds to the solution of a weighted ($W_{\beta^{(k)}}$) linear regression of $Z_{\beta^{(k)}}$ by $X$. As an exercise you can implement this algorithm.
+
+Is is a good exercise to sharpen your `R` skills to implement this algorithm and compare its results with the Newton method.
+
+```{r}
+#| code-fold: show
+# We put the data frame in matrix form
+# also adding an intercept
+X <- cbind(rep(1, nrow(default_data)),
+                          as.matrix(default_data %>% select(balance, income))) 
+colnames(X) <-  c("(Intercept)", "balance", "income")
+n <- nrow(X)
+
+# We extract the output as vector
+Y <- default_data %>% mutate(default = if_else(default=='Yes', 1, 0)) %>% pull(default)
+
+default_data_IRLS <- default_data %>% 
+  mutate(Y = if_else(default=='Yes', 1, 0)) %>% 
+  select(Y, balance, income)
+
+# We set an initial guess for beta and criterion for stopping
+beta <- c(0.01, 0.0, 0.0)
+nb_iter <- 25
+tol <- 1e-5
+
+lr_solve_IRLS <- function(X, Y, beta, nb_iter, tol){
+    for(i in 1:nb_iter){
+
+        # first compute p_beta(X)
+        p_beta <- exp(X %*% beta) / (1 + exp(X %*% beta))
+        
+        # then the Score
+        Score_beta <- t(X) %*% (Y-p_beta)
+        
+        # and the Hessian (storing its diag for further usage)
+        W_beta <- matrix(0, n, n)
+        w <- p_beta*(1-p_beta)
+        diag(W_beta) <- w
+        
+        Hessian_beta <- -t(X) %*% W_beta %*% X
+        
+        # rewriting Newton step as a weighted (with diagonal elements of W_beta)
+        # least square problem on modified target Z
+        Z <- X %*% beta + (Y-p_beta) / w
+        wls <- lm(Z ~ ., data=tibble(Z = Z[,1], default_data_IRLS %>% select(-Y)) , weights=w)
+        
+        # we update beta with weighted least square coefficients
+        new_beta <- wls$coefficients
+        
+        # we check for convergence
+        if(t(beta-new_beta) %*% (beta-new_beta) < tol){
+            return(list(beta = beta, hessian = Hessian_beta, nb_iter = i)) 
+        }
+        beta <- new_beta
+        
+    }
+    return(list(beta = beta, hessian = Hessian_beta, nb_iter = i)) 
+}
+
+sol_IRLS <- lr_solve_IRLS(X, Y, beta, nb_iter, tol)
+```
+
+We verify that R `glm()` and our IRLS algorithm give similar coefficients:
+
+-   IRLS:
+
+```{r}
+as_tibble(t(sol$beta))
+```
+
+-   R `glm()`:
+
+```{r}
+as_tibble(t(coef(glm_bal_inc )))
+```
+
+#### Example where MLE is not finite
+
+To conclude on the numerical aspects, we signal a special and extreme case where the iterative algorithm won't converge. The theoretical aspect is covered in [@albert1984a].
+
+We simulate a perfectly separated data set. Here $X\in \mathbb [-1,1]$ and $Y\in\{0,1\}$:
+
+```{r}
+set.seed(1987)
+X <- c(runif(n = 50, min = -1, max = 0),
+       runif(n = 50, min = 0, max = 1))
+Y <- c(rep(0, 50), rep(1, 50))
+
+tbl_separated <- tibble(X,Y)
+ggplot(tbl_separated) + geom_point(aes(X, Y))
+```
+
+In this setting the iterative algorithm fails to converge and coefficient "saturates" to a high/low value (while it should go to infinite):
+
+```{r}
+glm_separated <- glm(Y ~ X,
+                     data = tbl_separated,
+                     family="binomial")
+
+glm_separated$coef
+```
+
+```{r}
+separated_fit <- broom::augment(glm_separated, type.predict = "response")
+ggplot(separated_fit) +
+    geom_point(aes(X, Y)) +
+    geom_line(aes(X,.fitted))
+```
+
+Now we slightly modify the data set, changing a $y$ observation with $x\in[-1,0]$ from $0$ to $1$.
+
+```{r}
+Y1 <- Y
+Y1[25] <- 1
+tbl_overlap <- tibble(X,Y1)
+ggplot(tbl_overlap) + geom_point(aes(X, Y1))
+```
+
+The iterative algorithm converges again and the impact on the Scoring function (i.e. $\mathbb{P}[Y=1|X=x)$) and the decision rule (shifting left below $X=O$) is not negligible for a one point change:
+
+```{r}
+glm_overlap <- glm(Y1 ~ X,
+                     data = tbl_separated,
+                     family="binomial")
+overlap_fit <- broom::augment(glm_overlap, type.predict = "response")
+ggplot(overlap_fit) +
+    geom_point(aes(X, Y1)) +
+    geom_line(aes(X,.fitted))
+```
+
+Nonetheless the case we described is very unlikely to happen in a real life setting, and a good data set exploration should avoid such trap. More details can be found in the document `Separation and Convergence Issues in Logistic Regression.pdf`
+
+### Logistic Regression as a machine learning approach
+
+We have another look at the log-likelihood equation stated before, we have:
+
+$$
+\begin{align}
+\ell(Y,\beta)=\log L(Y,\beta) &=\sum_{i=1}^n \left(y_i \log(p_{\beta}(x_i))+(1-y_i) \log(1- p_{\beta}(x_i))\right) \\
+                              &=-\sum_{i=1}^{n} \ell_{logistic} \left(p_{\beta}(x_i),y_i\right) \\
+                              &= -n\hat{\mathrm R}(p_\beta) 
+\end{align} 
+$$
+
+where $\ell_{logistic}: \{0,1\}\times \{0,1\} \to \mathbb R^+$:
+
+$$
+\ell_{logistic}(y,z) = -y\log(z)-(1-y)\log(1-z)=\left\{ \begin{array}{ll} 
+    -\log(z) &  \mbox{if } y = 1\cr
+    -\log(1-z) &  \mbox{if } y = 0\cr
+\end{array} \right.
+$$
+
+and $\hat{\mathrm {R}}(p_\beta)$ is the empirical risk on the training set.
+
+Estimating $\beta$ by maximizing the log-likelihood is equivalent to minimizing with respect to $\beta$ the empirical risk of $p_\beta$ for the logistic loss. Note that usually in the context of machine learning and logistic loss, the output $Y$ is relabeled to $\{-1,1\}$.
+
+## Real life data sets
+
+We introduce below two interesting data sets that can be used to apply the methods seen in the course.
+
+### The **German Credit** data set
+
+This data set mainly composed of categorical features is analysed in depth in @tufféry2011 and the analysis has been extended in the Chapter 4 of @computat2014 using the R programming language and a statistical learning approach (it is a very good reference covering Logistic Regression, Stepwise variable selection, Penalized Logistic Regression, Decision Trees and Ensemble methods with a mix of theory and practice). Part of the analysis is available in this [blog post](https://www.r-bloggers.com/2016/03/classification-on-the-german-credit-database/) by A. Charpentier, who also open sourced many excellent courses among which [Applied Linear Models](https://github.com/freakonometrics/STT5100/) and [Data Science for Actuaries](https://github.com/freakonometrics/ACT6100/).
+
+The German Credit data set is available at the [UCI archive](https://archive.ics.uci.edu/ml/datasets/statlog+(german+credit+data)).
+
+```{r, message=FALSE}
+#| code-fold: show
+load('../data/germancredit.RData')
+
+germancredit_clean <- germancredit %>%
+    as_tibble() %>% 
+    rename_all(~ stringr::str_replace_all(., "\\.", "_")) %>% 
+    mutate(creditability = as.factor(as.numeric(creditability) - 1)) %>%  # map target to 0 (good credit) 1 (bad credit)
+           # age_binned = cut(age_in_years, c(0, 25, Inf)),
+           # credit_amount_binned = cut(credit_amount, c(0, 2500, Inf)),
+           # duration_binned = cut(duration_in_month, c(0, 15, 36, Inf))) %>% 
+    rename(status = status_of_existing_checking_account,
+           duration = duration_in_month,
+           history = credit_history,
+           amount = credit_amount,
+           savings = savings_account_and_bonds,
+           job_since = present_employment_since,
+           icr = installment_rate_in_percentage_of_disposable_income,
+           personal = personal_status_and_sex,
+           resid_since = present_residence_since,
+           age = age_in_years,
+           debtors_guarantors = other_debtors_or_guarantors,
+           existing_credits = number_of_existing_credits_at_this_bank,
+           to_provide = number_of_people_being_liable_to_provide_maintenance_for
+           )
+    
+glimpse(germancredit_clean)
+```
+
+Description of the data:
+
+```{r}
+#| code-fold: show
+vars_quanti <- names(germancredit_clean %>% select_if(is.numeric))
+for(var in vars_quanti){
+    var <- as.name(var)
+    print(ggplot(germancredit_clean %>% mutate(creditability = as.numeric(creditability)-1), aes(x=!! var,y = creditability)) +
+        geom_jitter(height = 0.1, width = 0) +
+        geom_smooth(method = "glm", 
+                    formula = y ~ x,
+                    method.args = list(family = "binomial"), 
+                    se = FALSE,
+                    col = "dodgerblue"))
+}
+```
+
+```{r}
+#| code-fold: show
+germancredit_clean <- germancredit_clean %>%
+    mutate(icr = as.factor(icr),
+           resid_since = as.factor(resid_since),
+           existing_credits = as.factor(existing_credits),
+           to_provide = as.factor(to_provide)
+           )
+```
+
+```{r, message = FALSE}
+#| code-fold: show
+vars_quali <- names(germancredit_clean %>% select_if(is.factor) %>% select(-creditability))
+for(var in vars_quali){
+    var <- as.name(var)
+    print(ggplot(germancredit_clean %>% 
+                     group_by(!!var, creditability) %>% 
+                     summarize(count = n()) %>% 
+                     ungroup()) +
+        geom_bar(aes(x = creditability, y = count, fill = !!var), position="dodge",stat="identity"))
+}
+```
+
+```{r, message = FALSE}
+#| code-fold: show
+germancredit_glm <- glm(creditability ~ . , data = germancredit_clean, family = "binomial")
+summary(germancredit_glm)
+```
+
+### Agriculture Farm Lending
+
+The article @desbois2008 (available [here](https://csbigs.fr/index.php/csbigs/article/view/351) together with a sample data set) shows a complete case study around the detection of financial risks applicable to farm holdings. Linear Discriminant Analysis and Logistic Regression (plus stepwise variable selection) are used and ROC curves are used to compare the two methods.
+
+The data set uses a format specific to the SPSS software, but is readable from R using the `foreign` package.
+The case study by Desbois will be partly reproduced in the next lesson.
+
+```{r}
+#| code-fold: show
+# package used to import spss file
+library(foreign)
+
+don_desbois <- read.spss("../data/Agriculture Farm Lending/desbois.sav",
+                       to.data.frame = TRUE) %>% as_tibble()
+don_desbois <- don_desbois %>%
+    mutate(Y = as.factor(if_else(DIFF=='healthy', 0, 1))) %>%
+    dplyr::select(-DIFF)
+
+model_desbois <- glm(Y ~ STATUS + HECTARE + r1 + r3 + r17 + r24 + r28 + r36,
+                     data = don_desbois,
+                     family = "binomial",
+                     maxit = 100)
+
+summary(model_desbois)
+```
+
+```{r}
+#| code-fold: show
+model_desbois <- glm(Y ~ OWNLAND + r17,
+                     data = don_desbois,
+                     family = "binomial")
+
+summary(model_desbois)
+```
+
+# Exercises
+
+## ROC curves (partly inspired from Exercise 11.10 [@cornillon2019])
+
+Using the Mixture data set, plot ROC curves for some chosen classifiers:
+
+-   first by implementing from scratch a method for plotting ROC curves using the course definition:
+
+For a given threshold $s$ and passing as argument a column of outputs $Y$ together with a score column (i.e. predicted probabilities) we define a function to obtain the False/True Positive Rates:
+
+```{r}
+#| code-fold: true
+roc_curve <- function(s, error_rate){
+    # error_rate is a tibble containing a column Y of true values and a column of score/probabilities 
+    # let s be a threshold in R
+    
+    output <- factor(error_rate %>% pull(Y), levels = c(0,1))
+    
+    # classify using model probabilities (ie the score) and the threshold s
+    classifier <- error_rate %>%
+        mutate(classifier = factor(if_else(score>=s, 1, 0), levels = c(0,1))) %>% 
+        pull(classifier)
+
+    # build the confusion matrix and ROC curve coordinates for the given s
+    # (x(s) = false_positive_rate, y(s) = true_positive_rate)
+    conf_mat <- table(output, classifier)
+    #       classifier
+    # output    0       1
+    #      0 3681(TN) 1319(FP)
+    #      1 1586(FN) 3414(TP)
+    
+    true_negative <- conf_mat[1,1]
+    false_positive <- conf_mat[1,2]
+    
+    false_negative <- conf_mat[2,1]
+    true_positive <- conf_mat[2,2]
+    
+    false_positive_rate <- false_positive / (false_positive + true_negative)
+    
+    true_positive_rate <- true_positive / (false_negative + true_positive) # aka sensitivity
+    
+    return(tibble(threshold = s, fpr = false_positive_rate, tpr = true_positive_rate))
+}
+```
+
+We first use this function to plot the ROC curve (passing a vector of thresholds $s$) for a Logistic Regression classifier defined and fitted in the first section of the course:
+
+```{r}
+#| code-fold: true
+# In the case of logistic regression, we use the regression function in [0, 1] as a scoring function
+# We vary s in [0, 1] to compute the ROC parametric curve 
+roc_coordinates_logit <- list()
+
+for (s in seq(0, 1, 0.001)){
+    roc_coordinates_logit <- append(roc_coordinates_logit,
+                                    list(roc_curve(s, logit_error_rate %>% mutate(score = .fitted))))
+}
+roc_coordinates_logit <- bind_rows(roc_coordinates_logit)
+
+ggplot(roc_coordinates_logit, aes(x=fpr, y = tpr)) + geom_line()
+
+```
+
+We then use it to plot the ROC curve for a Logistic Regression classifier using predictors modified using splines:
+
+```{r}
+#| code-fold: true
+# In the case of logistic regression, we use the regression function in [0, 1] as a scoring function
+# We vary s in [0, 1] to compute the ROC parametric curve 
+roc_coordinates_logit_splines <- list()
+
+for (s in seq(0, 1, 0.001)){
+    roc_coordinates_logit_splines <- append(roc_coordinates_logit_splines,
+                                    list(roc_curve(s, logit_splines_add_error_rate %>% mutate(score = .fitted))))
+}
+roc_coordinates_logit_splines <- bind_rows(roc_coordinates_logit_splines)
+
+ggplot(roc_coordinates_logit_splines, aes(x=fpr, y = tpr)) + geom_line()
+
+
+```
+
+We then use it to plot the ROC curve for a Logistic Regression classifier using discretized quantitative predictors (binning):
+
+```{r}
+#| code-fold: true
+# In the case of logistic regression, we use the regression function in [0, 1] as a scoring function
+# We vary s in [0, 1] to compute the ROC parametric curve 
+roc_coordinates_logit_binned <- list()
+
+for (s in seq(0, 1, 0.001)){
+    roc_coordinates_logit_binned <- append(roc_coordinates_logit_binned,
+                                    list(roc_curve(s, logit_binned_error_rate %>% mutate(score = .fitted))))
+}
+roc_coordinates_logit_binned <- bind_rows(roc_coordinates_logit_binned)
+
+ggplot(roc_coordinates_logit_binned, aes(x=fpr, y = tpr)) + geom_line()
+```
+
+To finish we show the ROC curve for a Decision Tree method:
+
+```{r}
+#| code-fold: true
+# In the case of cart, we use the predicted prob in [0, 1] as a scoring function
+# Caution, with decision trees, the "probability" or score function is given by the belonging to a terminal node
+# In our case we have 6 terminal nodes, yielding only 6 possible probabilities for an observation:
+# cart_error_rate %>%
+#   group_by(prob) %>%
+#   summarize(n = n())
+# # A tibble: 6 × 2
+#     prob     n
+#    <dbl> <int>
+# 1 0        583
+# 2 0.0769  2871
+# 3 0.241   1521
+# 4 0.714    515
+# 5 0.821   3597
+# 6 0.952    913
+# So only the thresholds s [0 0.0769 0.241 0.714 0.821 0.952] will modify the confusion matrix
+# For logistic regression for example and sufficient number of observations, the range of predicted probabilities
+# although discrete 
+# See also https://stats.stackexchange.com/questions/105760/how-we-can-draw-an-roc-curve-for-decision-trees
+# https://stackoverflow.com/questions/40385478/why-dont-we-get-a-smooth-roc-curve-in-cart-models
+# We vary s in [0, 1] to compute a pseudo ROC parametric curve for CART (in fact only "points" for each of the preceding thresholds)
+roc_coordinates_cart<- list()
+
+for (s in seq(0, 1, 0.001)){
+    roc_coordinates_cart <- append(roc_coordinates_cart,
+                                    list(roc_curve(s, cart_error_rate %>% mutate(score = prob))))
+}
+roc_coordinates_cart <- bind_rows(roc_coordinates_cart)
+
+ggplot(roc_coordinates_cart, aes(x=fpr, y = tpr)) + geom_point() + geom_line()
+
+```
+
+Plotting the ROC curves together:
+
+```{r}
+#| code-fold: true
+ggplot() +
+    geom_line(data = roc_coordinates_logit, aes(x=fpr, y = tpr, color = 'logistic')) +
+    geom_line(data = roc_coordinates_logit_splines, aes(x=fpr, y = tpr, color = 'logistic splines')) +
+    geom_line(data = roc_coordinates_logit_binned, aes(x=fpr, y = tpr, color = 'logistic binned')) +
+    geom_line(data = roc_coordinates_cart, aes(x=fpr, y = tpr, col = 'decision tree')) +
+    scale_color_manual(name='Model',
+                     breaks=c('logistic', 'logistic splines', 'logistic binned', 'decision tree'),
+                     values=c('logistic'='darkorange', 
+                              'logistic splines' = 'darkolivegreen',
+                              'logistic binned' = 'plum4',
+                              'decision tree'='dodgerblue'))
+```
+
+-   then using the `ROCR` package (see `ROCR_Talk_Tobias_Sing.ppt` in course repository for a presentation by its authors)
+
+The library `ROCR` needs to first build a `prediction` object using a column of outputs $Y$ together with a score column (i.e. predicted probabilities), then to build a `performance` object (for a ROC curve the arguments `measure = "tpr", x.measure = "fpr"` should be passed to `performance()` together with the `prediction` object / for the AUC the argument `measure = "auc"` should be passed to `performance()` together with the `prediction` object)
+
+We obtain the same curves as before:
+
+```{r}
+#| code-fold: true
+# ROC Curves with ROCR
+library("ROCR")    
+
+# logit_error_rate$.fitted: predicted probabilities
+# logit_error_rate$Y: column of outputs Y
+
+# logit
+pred <- prediction(logit_error_rate$.fitted, logit_error_rate$Y)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, main="ROC curve Admissions", xlab="Specificity",
+     ylab="Sensitivity", col = "darkorange")
+abline(0, 1) #add a 45 degree line
+
+# compute empirical AUC with ROCR for base logit model
+auc_logit <- ROCR::performance(pred, measure = "auc")
+auc_logit <- auc_logit@y.values[[1]]
+
+
+# logit splines
+pred <- prediction(logit_splines_add_error_rate$.fitted, logit_splines_add_error_rate$Y)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, add = TRUE, main="ROC curve Admissions", xlab="Specificity",
+     ylab="Sensitivity", col = "darkolivegreen")
+
+# logit binned
+pred <- prediction(logit_binned_error_rate$.fitted, logit_binned_error_rate$Y)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, add = TRUE, main="ROC curve Admissions", xlab="Specificity",
+     ylab="Sensitivity", col = "plum4")
+
+# CART
+pred <- prediction(cart_error_rate$prob , cart_error_rate$Y)
+perf <- performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, add = TRUE, main="ROC curve Admissions", xlab="Specificity",
+     ylab="Sensitivity", col = "dodgerblue")
+legend(0.6,0.6,
+       c('logistic', 'logistic splines', 'logistic binned', 'decision tree'),
+       col=c("darkorange", "darkolivegreen", "plum4", "dodgerblue"),lwd=3)
+```
+
+It can be shown (see for example [here](https://stats.stackexchange.com/questions/180638/how-to-derive-the-probabilistic-interpretation-of-the-auc) or [here](https://www.alexejgossmann.com/auc/)), that for a score function $S$:
+
+$AUC(S)=\mathbf P(S(X)\geq S(X^{'})|(Y,Y^{'})=(1,0))$ where $(X, Y)$, $(X^{'}, Y^{'})$ are independent with law $\mathbf P_{\mathrm X \times \mathrm Y}$
+
+Defining $\mathcal I = \{(i,j)|y_i=1, y_j=0\}$, we can write an empirical estimator of AUC:
+
+$AUC(S)=\frac{1}{Card(\mathcal I)}\sum_{(i,j)\in\mathcal I}\mathbf 1_{S(X_i)>S(S_j)}$
+
+```{r}
+zero <- logit_error_rate %>% filter(Y==0)
+one <- logit_error_rate %>% filter(Y==1)
+
+I_set <- expand_grid(zero %>% mutate(score_0 = .fitted) %>% select(score_0),
+                     one %>% mutate(score_1 = .fitted) %>% select(score_1))
+
+P_correctly_classified <- I_set %>% 
+                    mutate(correctly_classified = score_1 > score_0) %>% 
+                    group_by(correctly_classified) %>% 
+                    summarize(prob = n() / nrow(.)) %>% 
+                    filter(correctly_classified==TRUE) 
+
+(auc_emp <- P_correctly_classified %>% pull(prob))
+```
+
+This is the same value we obtained with `ROCR` before using the command `performance`:
+
+```{{r}}
+auc_logit <- ROCR::performance(pred, measure = "auc")
+auc_logit <- auc_logit@y.values[[1]]
+```
+
+```{r}
+auc_logit
+```
+
+
+## Bayes classifier (Exercise 11.9 [@cornillon2019])
+
+Considering a pair of random variables $(X, Y)$ taking values in $\mathbb R\times\{0,1\}$ with:
+
+$X\sim\mathcal U[-2,2]$\text{,}\quad $U\sim\mathcal U[0,10]$
+
+and:
+
+$$
+\begin{align*}
+Y|X=x  & =\left\{
+\begin{array}{ll}
+\mathbf 1_{U\leq2}  & \textrm{if } x\leq 0 \\
+\mathbf 1_{U>1}  & \textrm{if } x>0
+\end{array}\right.
+\end{align*}
+$$ 
+where $\mathcal U[a, b]$ denotes the uniform distribution on $[a,b]$ and $X$ and $U$ are assumed to be independent.
+
+Calculate the Bayes classifier and the Bayes risk.
+
+Bayes classifier:
+
+Using the definition of $Y|X$, if $x \leq 0$ we have $\eta(x) = \mathbb{P}[Y=1|X=x)]= \mathbb{P}[U\leq 2]=\frac{1}{5}$ and if $x>0$ we have $\eta(x) = \mathbb{P}[Y=1|X=x)]=\mathbf P(U> 1)=\frac{9}{10}$.
+
+Reminding that the Bayes classifier for the 0-1 loss is:
+
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \eta(x)\geq \frac{1}{2}\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+
+we have:
+
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } x>0\cr
+    0 &  \mbox{if } x\leq 0\cr
+\end{array} \right.
+$$
+Bayes risk:
+
+$$\begin{align*}
+  \mathbb{P}[f^{*}(X)\neq Y|X=x] & = \mathbb{P}[(f^{*}(X)\neq Y|X > 0]\mathbb{P}[X > 0] + \mathbb{P}[(f^{*}(X)\neq Y|X \leq 0]\mathbb{P}[X \leq 0] \\
+  & = \mathbb{P}[(Y \neq 1|X > 0]\mathbb{P}[X > 0] + \mathbb{P}[(Y \neq 0|X \leq 0]\mathbb{P}[X \leq 0] \\
+  & = \mathbb{P}[(Y = 0|X > 0]\frac{1}{2} + \mathbb{P}[(Y = 1|X \leq 0]\frac{1}{2} \\
+  & = (1-\mathbb{P}[(Y = 1|X > 0])\frac{1}{2} + \mathbb{P}[(Y = 1|X \leq 0]\frac{1}{2} \\
+  & = (1-\frac{9}{10})\frac{1}{2} + \frac{1}{5}\frac{1}{2} \\
+  & = \frac{3}{20} \\
+\end{align*}$$
+
+
+
+
+
+## Other simulated data sets
+
+Simulate other toy data sets, and plot decision boundaries for classifiers of your choice. For example:
+
+-   Data set 1:
+    -   Class 0: mixture (ie two buckets a,b chosen randomly with probability $\frac{1}{2}$) of Gaussian $\mu_{0a}=\begin{bmatrix} 1  \\ 4  \end{bmatrix}$ or $\mu_{0b}=\begin{bmatrix} 1  \\ -4  \end{bmatrix}$ and $\Sigma_{0a}=\Sigma_{0b}=\begin{bmatrix} 2 & 0 \\ 0 & 2 \end{bmatrix}$
+    
+    -   Class 1: Gaussian with $\mu_{1}=\begin{bmatrix} 4  \\ 0  \end{bmatrix}$ and $\Sigma_{1}=\begin{bmatrix} 2 & 0 \\ 0 & 4 \end{bmatrix}$
+
+LEFT AS AN EXERCISE TO PREPARE THE EXAM
+
+-   Data set 2 (using a "generative" approach, with same assumptions as QDA): Given $\mu_0$, $\mu_1$, $\Sigma_0$ and $\Sigma_1$ and $X$ having values in $\mathbb R^2$:
+
+    - $X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
+
+    - $X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$ and $\mathbb{P}[Y=1]=\pi$
+    
+Linear|Quadratic Discriminant Analysis are well described in many books, for example in chapter 4, section 4.3 of @hastie2009 or [here](https://rich-d-wilkinson.github.io/MATH3030/8-lda.html#lda).
+
+Assuming we model each class (indexed by $k \in \{0, 1\}$) density as a multivariate Gaussian (in $\mathbb R^{d}$, here $d=2$):
+
+$$f_k(x) = \frac{1}{(2 \pi)^{d/2} |\Sigma_k|^{1/2}} \exp \left( - \frac{1}{2} (x - \mu_k)^T \Sigma_k^{-1} (x - \mu_k) \right)$$
+and knowing $\pi_k = \mathbb{P}[Y=k]$ we have:
+
+$$\mathbb{P}[Y=k|X=x]=\frac{f_k(x)\pi_k}{\mathbb{P}[X=x]}$$
+Rewriting Bayes Classifier as: 
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \mathbb{P}[Y=1|X=x]\geq \mathbb{P}[Y=0|X=x]\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+
+The condition to predict $f^*(x)=1$ is:
+
+$$\frac{\mathbb{P}[Y=1|X=x]}{\mathbb{P}[Y=0|X=x]}=\frac{f_1(x)\pi_1}{f_0(x)\pi_0}\geq 1$$
+
+Or taking the log:
+$$\log(\frac{f_1(x)\pi_1}{f_0(x)\pi_0})\geq 0$$
+We have:
+$$\log(f_k(x)\pi_k)=\log f_k(x) + \log \pi_k =C -\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$
+Usually discriminant functions $\delta_k$ are defined as:
+$$\delta_k(x)=-\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$
+So the Bayes Classifier rewrites:
+$$
+f^*(x)=\left\{ \begin{array}{ll} 
+    1 &  \mbox{if } \delta_1(x)\geq \delta_0(x)\cr
+    0 &  \mbox{otherwise}\cr
+\end{array} \right.
+$$
+The decision boundary is $\{x|\delta_1(x)=\delta_0(x)\}$. In the most general case ($\Sigma_1 \neq \Sigma_0$) and for $d=2$ this is the equation of a conic section.
+
+Below we experiment with various choices of $\mu_0,\Sigma_0, \mu_1,\Sigma_1$ and $\pi$ for the $d=2$ case.
+
+We plot the theoretical Bayes decision boundary (a conic, either ellipse, hyperbola or parabola) in purple together with the boundary decision of classifiers estimated on simulated data (LDA in red, QDA in grey, LDA/Logistic Regression with quadratic interactions in green/blue):
+    
+```{r, warning=FALSE}
+# Class 1 parameters
+pi_1 <- 0.5
+
+mu_11 <- 1 
+mu_12 <- 0
+
+sig_11 <- 1
+sig_12 <- sqrt(2)
+rho_1 <- 0.8
+
+# Class 0 parameters
+pi_0 <- 1- pi_1  
+
+mu_01 <- 0 
+mu_02 <- 3
+
+sig_01 <- sqrt(3)
+sig_02 <- 1
+rho_0 <- -0.3 
+
+# Class 1 helpers
+mu_1 <- c(mu_11, mu_12)
+Sigma_1 <- matrix(c(sig_11 ^ 2, rho_1 * sig_11 * sig_12, rho_1 * sig_11 * sig_12, sig_12 ^ 2), nrow = 2)
+det_Sigma_1 <- sig_11 ^ 2 * sig_12 ^ 2 * (1 - rho_1 ^ 2)
+inv_Sigma_1 <- 1 / det_Sigma_1 * matrix(c(sig_12 ^ 2, - rho_1 * sig_11 * sig_12, - rho_1 * sig_11 * sig_12, sig_11 ^ 2), nrow = 2)
+
+# Class 0 helpers
+mu_0 <- c(mu_01, mu_02)
+Sigma_0 <- matrix(c(sig_01 ^ 2, rho_0 * sig_01 * sig_02, rho_0 * sig_01 * sig_02, sig_02 ^ 2), nrow = 2)
+det_Sigma_0  <- sig_01 ^ 2 * sig_02 ^ 2 * (1 - rho_0 ^ 2) 
+inv_Sigma_0 <- 1 / det_Sigma_0 * matrix(c(sig_02 ^ 2, - rho_0 * sig_01 * sig_02, - rho_0 * sig_01 * sig_02, sig_01 ^ 2), nrow = 2)
+
+# Conic section
+A <- sig_12^2/abs(det_Sigma_1)-sig_12^2/abs(det_Sigma_0) 
+B <- -2 *(rho_1 * sig_11 * sig_12 / abs(det_Sigma_1) - rho_0 * sig_01 * sig_02 / abs(det_Sigma_0) )
+C <- sig_11^2/abs(det_Sigma_1)-sig_01^2/abs(det_Sigma_0)
+
+det_conic <- B ^ 2 - 4 * A * C
+conic <- "parabola"
+if(det_conic>0){
+  conic <- "hyperbola"
+} else if(det_conic<0){
+  conic <- "ellipse"
+}
+(paste("decision boundary is an",conic))
+
+# https://stackoverflow.com/questions/74499955/how-to-depict-a-graph-of-an-implicit-differentiation-equation-on-r/74500274#74500274
+# Speed up with Rcpp if needed
+# https://stackoverflow.com/questions/56765690/efficient-way-of-computing-quadratic-forms-for-outer-product-matrices
+discriminant_boundary <- function(x1, x2){
+
+  # Boundary decision equation (equalizing the two discriminant equations)
+  delta_1 <- log(pi_1) -1/2 * log(abs(det_Sigma_1)) -1/2 * sum(t(c(x1 - mu_11, x2 - mu_12)) %*% inv_Sigma_1 %*% c(x1 - mu_11, x2 - mu_12))  
+  delta_0 <- log(pi_0) -1/2 * log(abs(det_Sigma_0)) -1/2 * sum(t(c(x1 - mu_01, x2 - mu_02)) %*% inv_Sigma_0 %*% c(x1 - mu_01, x2 - mu_02)) 
+  
+  delta_1 - delta_0
+} 
+
+discriminant_boundary_V <- Vectorize(discriminant_boundary)
+
+x <- seq(-6, 6, len = 600)
+y <- seq(-6, 6, len = 600)
+z <- outer(x, y, discriminant_boundary_V)
+
+# Sampling n data from the given distrib
+set.seed(6)
+n <- 10000
+n1 <- rbinom(1, n, pi_1)
+n0 <- n - n1
+
+# Class 1
+class_1 <- MASS::mvrnorm(n1, mu_1, Sigma_1)
+class_1 <- tibble(Y=1, x1 = class_1[,1], x2 = class_1[,2])
+
+# Class 0
+class_0 <- MASS::mvrnorm(n0, mu_0, Sigma_0)
+class_0 <- tibble(Y=0, x1 = class_0[,1], x2 = class_0[,2])
+
+# Predict with QDA on a grid
+class_dat <- bind_rows(class_1, class_0) %>%
+              mutate(Y = as.factor(Y))
+qda_class <- MASS::qda(Y~x1+x2, data=class_dat)
+lda_class <- MASS::lda(Y~x1+x2, data=class_dat)
+lda_2nd_class <- MASS::lda(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat)
+logreg_class <- glm(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat, family="binomial")
+
+density_qda <- expand.grid(x1 = x, x2 = y) %>% as_tibble()
+
+qda_pred <- predict(qda_class, density_qda)
+lda_pred <- predict(lda_class, density_qda)
+lda_2nd_pred <- predict(lda_2nd_class, density_qda)
+logreg_pred <- broom::augment(logreg_class, newdata = density_qda, type.predict = "response")
+
+qda_fit <- tibble(class_qda = as.numeric(as.character(qda_pred$class)),
+                  class_lda = as.numeric(as.character(lda_pred$class)),
+                  class_lda_2nd = as.numeric(as.character(lda_2nd_pred$class)),
+                  class_logreg_2nd = logreg_pred$.fitted) %>% 
+                  mutate(class_logreg_2nd = if_else(class_logreg_2nd>0.5, 1, 0))
+
+density_qda <- bind_cols(density_qda, qda_fit) 
+
+oracle_qda <- bind_cols(density_qda, tibble(oracle = t(matrix(z, nrow=1))))
+
+ggplot(class_dat) +
+  geom_point(aes(x=x1, y=x2, colour = Y), alpha = 0.35) +
+  scale_colour_manual(values = c("dodgerblue", "orange")) +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_qda), col = 'darkgrey') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda), col = 'darkred') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda_2nd), col = 'darkgreen') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_logreg_2nd), col = 'darkblue') +
+  geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
+
+
+```
+ 
+Slightly changing the centers and variances, here the LDA with quadratic interaction seem to better match the Bayes decision boundary:
+```{r, warning=FALSE}
+#| code-fold: true
+# Class 1 parameters
+pi_1 <- 0.5
+
+mu_11 <- 0 
+mu_12 <- 2
+
+sig_11 <- sqrt(2)
+sig_12 <- 1
+rho_1 <- 0.8
+
+# Class 0 parameters
+pi_0 <- 1- pi_1  
+
+mu_01 <- -2 
+mu_02 <- 0
+
+sig_01 <- sqrt(3)
+sig_02 <- sqrt(2)
+rho_0 <- -0.3 
+
+# Class 1 helpers
+mu_1 <- c(mu_11, mu_12)
+Sigma_1 <- matrix(c(sig_11 ^ 2, rho_1 * sig_11 * sig_12, rho_1 * sig_11 * sig_12, sig_12 ^ 2), nrow = 2)
+det_Sigma_1 <- sig_11 ^ 2 * sig_12 ^ 2 * (1 - rho_1 ^ 2)
+inv_Sigma_1 <- 1 / det_Sigma_1 * matrix(c(sig_12 ^ 2, - rho_1 * sig_11 * sig_12, - rho_1 * sig_11 * sig_12, sig_11 ^ 2), nrow = 2)
+
+# Class 0 helpers
+mu_0 <- c(mu_01, mu_02)
+Sigma_0 <- matrix(c(sig_01 ^ 2, rho_0 * sig_01 * sig_02, rho_0 * sig_01 * sig_02, sig_02 ^ 2), nrow = 2)
+det_Sigma_0  <- sig_01 ^ 2 * sig_02 ^ 2 * (1 - rho_0 ^ 2) 
+inv_Sigma_0 <- 1 / det_Sigma_0 * matrix(c(sig_02 ^ 2, - rho_0 * sig_01 * sig_02, - rho_0 * sig_01 * sig_02, sig_01 ^ 2), nrow = 2)
+
+# Conic section
+A <- sig_12^2 / abs(det_Sigma_1) - sig_12^2 / abs(det_Sigma_0) 
+B <- -2 *(rho_1 * sig_11 * sig_12 / abs(det_Sigma_1) - rho_0 * sig_01 * sig_02 / abs(det_Sigma_0) )
+C <- sig_11^2 / abs(det_Sigma_1) - sig_01^2 / abs(det_Sigma_0)
+
+det_conic <- B ^ 2 - 4 * A * C
+conic <- "parabola"
+if(det_conic>0){
+  conic <- "hyperbola"
+} else if(det_conic<0){
+  conic <- "ellipse"
+}
+(paste("decision boundary is an",conic))
+
+# Boundary decision
+x <- seq(-6, 6, len = 600)
+y <- seq(-6, 6, len = 600)
+z <- outer(x, y, Vectorize(discriminant_boundary))
+
+# Sampling n data from the given distrib
+set.seed(6)
+n <- 10000
+n1 <- rbinom(1, n, pi_1)
+n0 <- n - n1
+
+# Class 1
+class_1 <- MASS::mvrnorm(n1, mu_1, Sigma_1)
+class_1 <- tibble(Y=1, x1 = class_1[,1], x2 = class_1[,2])
+
+# Class 0
+class_0 <- MASS::mvrnorm(n0, mu_0, Sigma_0)
+class_0 <- tibble(Y=0, x1 = class_0[,1], x2 = class_0[,2])
+
+# Predict with QDA on a grid
+class_dat <- bind_rows(class_1, class_0) %>%
+              mutate(Y = as.factor(Y))
+qda_class <- MASS::qda(Y~x1+x2, data=class_dat)
+lda_class <- MASS::lda(Y~x1+x2, data=class_dat)
+lda_2nd_class <- MASS::lda(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat)
+logreg_class <- glm(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat, family="binomial")
+
+density_qda <- expand.grid(x1 = x, x2 = y) %>% as_tibble()
+
+qda_pred <- predict(qda_class, density_qda)
+lda_pred <- predict(lda_class, density_qda)
+lda_2nd_pred <- predict(lda_2nd_class, density_qda)
+logreg_pred <- broom::augment(logreg_class, newdata = density_qda, type.predict = "response")
+
+qda_fit <- tibble(class_qda = as.numeric(as.character(qda_pred$class)),
+                  class_lda = as.numeric(as.character(lda_pred$class)),
+                  class_lda_2nd = as.numeric(as.character(lda_2nd_pred$class)),
+                  class_logreg_2nd = logreg_pred$.fitted) %>% 
+                  mutate(class_logreg_2nd = if_else(class_logreg_2nd>0.5, 1, 0))
+
+density_qda <- bind_cols(density_qda, qda_fit) 
+oracle_qda <- bind_cols(density_qda, tibble(oracle = t(matrix(z, nrow=1))))
+
+ggplot(class_dat) +
+  geom_point(aes(x=x1, y=x2, colour = Y), alpha = 0.35) +
+  scale_colour_manual(values = c("dodgerblue", "orange")) +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_qda), col = 'darkgrey') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda), col = 'darkred') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda_2nd), col = 'darkgreen') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_logreg_2nd), col = 'darkblue') +
+  geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
+
+```
+
+ 
+Nearly separated classes:
+```{r, warning=FALSE}
+#| code-fold: true
+# Class 1 parameters
+pi_1 <- 0.5
+
+mu_11 <- 0 
+mu_12 <- 4
+
+sig_11 <- 1
+sig_12 <- 1
+rho_1 <- 0
+
+# Class 0 parameters
+pi_0 <- 1- pi_1  
+
+mu_01 <- -4 
+mu_02 <- 0
+
+sig_01 <- sqrt(2)
+sig_02 <- sqrt(2)
+rho_0 <- 0 
+
+# Class 1 helpers
+mu_1 <- c(mu_11, mu_12)
+Sigma_1 <- matrix(c(sig_11 ^ 2, rho_1 * sig_11 * sig_12, rho_1 * sig_11 * sig_12, sig_12 ^ 2), nrow = 2)
+det_Sigma_1 <- sig_11 ^ 2 * sig_12 ^ 2 * (1 - rho_1 ^ 2)
+inv_Sigma_1 <- 1 / det_Sigma_1 * matrix(c(sig_12 ^ 2, - rho_1 * sig_11 * sig_12, - rho_1 * sig_11 * sig_12, sig_11 ^ 2), nrow = 2)
+
+# Class 0 helpers
+mu_0 <- c(mu_01, mu_02)
+Sigma_0 <- matrix(c(sig_01 ^ 2, rho_0 * sig_01 * sig_02, rho_0 * sig_01 * sig_02, sig_02 ^ 2), nrow = 2)
+det_Sigma_0  <- sig_01 ^ 2 * sig_02 ^ 2 * (1 - rho_0 ^ 2) 
+inv_Sigma_0 <- 1 / det_Sigma_0 * matrix(c(sig_02 ^ 2, - rho_0 * sig_01 * sig_02, - rho_0 * sig_01 * sig_02, sig_01 ^ 2), nrow = 2)
+
+# Conic section
+A <- sig_12^2 / abs(det_Sigma_1) - sig_12^2 / abs(det_Sigma_0) 
+B <- -2 *(rho_1 * sig_11 * sig_12 / abs(det_Sigma_1) - rho_0 * sig_01 * sig_02 / abs(det_Sigma_0) )
+C <- sig_11^2 / abs(det_Sigma_1) - sig_01^2 / abs(det_Sigma_0)
+
+det_conic <- B ^ 2 - 4 * A * C
+conic <- "parabola"
+if(det_conic>0){
+  conic <- "hyperbola"
+} else if(det_conic<0){
+  conic <- "ellipse"
+}
+(paste("decision boundary is an",conic))
+
+# Boundary decision
+x <- seq(-6, 6, len = 600)
+y <- seq(-6, 6, len = 600)
+z <- outer(x, y, Vectorize(discriminant_boundary))
+
+# Sampling n data from the given distrib
+set.seed(6)
+n <- 10000
+n1 <- rbinom(1, n, pi_1)
+n0 <- n - n1
+
+# Class 1
+class_1 <- MASS::mvrnorm(n1, mu_1, Sigma_1)
+class_1 <- tibble(Y=1, x1 = class_1[,1], x2 = class_1[,2])
+
+# Class 0
+class_0 <- MASS::mvrnorm(n0, mu_0, Sigma_0)
+class_0 <- tibble(Y=0, x1 = class_0[,1], x2 = class_0[,2])
+
+# Predict with QDA on a grid
+class_dat <- bind_rows(class_1, class_0) %>%
+              mutate(Y = as.factor(Y))
+qda_class <- MASS::qda(Y~x1+x2, data=class_dat)
+lda_class <- MASS::lda(Y~x1+x2, data=class_dat)
+lda_2nd_class <- MASS::lda(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat)
+logreg_class <- glm(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat, family="binomial")
+
+density_qda <- expand.grid(x1 = x, x2 = y) %>% as_tibble()
+
+qda_pred <- predict(qda_class, density_qda)
+lda_pred <- predict(lda_class, density_qda)
+lda_2nd_pred <- predict(lda_2nd_class, density_qda)
+logreg_pred <- broom::augment(logreg_class, newdata = density_qda, type.predict = "response")
+
+qda_fit <- tibble(class_qda = as.numeric(as.character(qda_pred$class)),
+                  class_lda = as.numeric(as.character(lda_pred$class)),
+                  class_lda_2nd = as.numeric(as.character(lda_2nd_pred$class)),
+                  class_logreg_2nd = logreg_pred$.fitted) %>% 
+                  mutate(class_logreg_2nd = if_else(class_logreg_2nd>0.5, 1, 0))
+
+density_qda <- bind_cols(density_qda, qda_fit) 
+oracle_qda <- bind_cols(density_qda, tibble(oracle = t(matrix(z, nrow=1))))
+
+ggplot(class_dat) +
+  geom_point(aes(x=x1, y=x2, colour = Y), alpha = 0.35) +
+  scale_colour_manual(values = c("dodgerblue", "orange")) +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_qda), col = 'darkgrey') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda), col = 'darkred') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda_2nd), col = 'darkgreen') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_logreg_2nd), col = 'darkblue') +
+  geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
+
+```
+Adding imbalance (Prior probability: 80% Class 1)
+```{r, warning=FALSE}
+#| code-fold: true
+# Class 1 parameters
+pi_1 <- 0.8
+
+mu_11 <- 0 
+mu_12 <- 0
+
+sig_11 <- 1
+sig_12 <- 1
+rho_1 <- 0.5
+
+# Class 0 parameters
+pi_0 <- 1- pi_1  
+
+mu_01 <- 0 
+mu_02 <- 0
+
+sig_01 <- sqrt(5)
+sig_02 <- sqrt(3)
+rho_0 <- -0.5 
+
+# Class 1 helpers
+mu_1 <- c(mu_11, mu_12)
+Sigma_1 <- matrix(c(sig_11 ^ 2, rho_1 * sig_11 * sig_12, rho_1 * sig_11 * sig_12, sig_12 ^ 2), nrow = 2)
+det_Sigma_1 <- sig_11 ^ 2 * sig_12 ^ 2 * (1 - rho_1 ^ 2)
+inv_Sigma_1 <- 1 / det_Sigma_1 * matrix(c(sig_12 ^ 2, - rho_1 * sig_11 * sig_12, - rho_1 * sig_11 * sig_12, sig_11 ^ 2), nrow = 2)
+
+# Class 0 helpers
+mu_0 <- c(mu_01, mu_02)
+Sigma_0 <- matrix(c(sig_01 ^ 2, rho_0 * sig_01 * sig_02, rho_0 * sig_01 * sig_02, sig_02 ^ 2), nrow = 2)
+det_Sigma_0  <- sig_01 ^ 2 * sig_02 ^ 2 * (1 - rho_0 ^ 2) 
+inv_Sigma_0 <- 1 / det_Sigma_0 * matrix(c(sig_02 ^ 2, - rho_0 * sig_01 * sig_02, - rho_0 * sig_01 * sig_02, sig_01 ^ 2), nrow = 2)
+
+# Conic section
+A <- sig_12^2 / abs(det_Sigma_1) - sig_12^2 / abs(det_Sigma_0) 
+B <- -2 *(rho_1 * sig_11 * sig_12 / abs(det_Sigma_1) - rho_0 * sig_01 * sig_02 / abs(det_Sigma_0) )
+C <- sig_11^2 / abs(det_Sigma_1) - sig_01^2 / abs(det_Sigma_0)
+
+det_conic <- B ^ 2 - 4 * A * C
+conic <- "parabola"
+if(det_conic>0){
+  conic <- "hyperbola"
+} else if(det_conic<0){
+  conic <- "ellipse"
+}
+
+(paste("decision boundary is an",conic))
+
+# Boundary decision
+x <- seq(-6, 6, len = 600)
+y <- seq(-6, 6, len = 600)
+z <- outer(x, y, Vectorize(discriminant_boundary))
+
+# Sampling n data from the given distrib
+set.seed(6)
+n <- 10000
+n1 <- rbinom(1, n, pi_1)
+n0 <- n - n1
+
+# Class 1
+class_1 <- MASS::mvrnorm(n1, mu_1, Sigma_1)
+class_1 <- tibble(Y=1, x1 = class_1[,1], x2 = class_1[,2])
+
+# Class 0
+class_0 <- MASS::mvrnorm(n0, mu_0, Sigma_0)
+class_0 <- tibble(Y=0, x1 = class_0[,1], x2 = class_0[,2])
+
+# Predict with QDA on a grid
+class_dat <- bind_rows(class_1, class_0) %>%
+              mutate(Y = as.factor(Y))
+qda_class <- MASS::qda(Y~x1+x2, data=class_dat)
+lda_class <- MASS::lda(Y~x1+x2, data=class_dat)
+lda_2nd_class <- MASS::lda(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat)
+logreg_class <- glm(Y~x1+x2+I(x1*x2)+I(x1^2)+I(x2^2), data=class_dat, family="binomial")
+
+density_qda <- expand.grid(x1 = x, x2 = y) %>% as_tibble()
+
+qda_pred <- predict(qda_class, density_qda)
+lda_pred <- predict(lda_class, density_qda)
+lda_2nd_pred <- predict(lda_2nd_class, density_qda)
+logreg_pred <- broom::augment(logreg_class, newdata = density_qda, type.predict = "response")
+
+qda_fit <- tibble(class_qda = as.numeric(as.character(qda_pred$class)),
+                  class_lda = as.numeric(as.character(lda_pred$class)),
+                  class_lda_2nd = as.numeric(as.character(lda_2nd_pred$class)),
+                  class_logreg_2nd = logreg_pred$.fitted) %>% 
+                  mutate(class_logreg_2nd = if_else(class_logreg_2nd>0.5, 1, 0))
+
+density_qda <- bind_cols(density_qda, qda_fit) 
+oracle_qda <- bind_cols(density_qda, tibble(oracle = t(matrix(z, nrow=1))))
+
+ggplot(class_dat) +
+  geom_point(aes(x=x1, y=x2, colour = Y), alpha = 0.35) +
+  scale_colour_manual(values = c("dodgerblue", "orange")) +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_qda), col = 'darkgrey') +
+  #geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda), col = 'darkred') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_lda_2nd), col = 'darkgreen') +
+  geom_contour(data = density_qda, aes(x=x1, y=x2, z = class_logreg_2nd), col = 'darkblue') +
+  geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
+
+```
+# References
+
+::: {#refs}
+:::
