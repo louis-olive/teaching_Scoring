@@ -1,0 +1,3119 @@
+---
+title: "Classification trees and ensemble methods"
+author: "Louis OLIVE"
+bibliography: references.bib
+link-citations: true
+format:
+  html:
+    theme: 
+       light: cerulean
+    #highlight: espresso
+    code-copy: true
+    code-fold: true
+    df-print: paged
+    include-in-header: mathjax.html
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+    toc-location: left
+    fontsize: 10pt
+    mainfont: "Helvetica Neue"
+    #embed-resources: true
+    #self-contained-math: true
+execute: 
+  #cache: true
+  warning: false
+editor: visual
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+```
+
+In the first lessons, we have mainly used a Logistic Regression model to deal with a binary classification / scoring problem.
+
+Logistic regression models may prove inadequate[^1] when dealing with scenarios characterized by non-linearity in the input-output relationship or when there are interactions among the input variables. This is when decision trees come to the forefront.
+
+[^1]: There are ways to cope with non-linearities using Logistic Regression model. We have briefly seen in the first course that one can modify input variables with splines or with binning. Sections 5.6 `Nonparametric Logistic Regression` and 9.1 `Generalized Additive Models` of @hastie2009 present methods to move beyond linearity in the context of Logistic Regression.
+
+Decision trees recursively partition the data by applying specific cutoff values to the features. This process creates various subsets of the data set, with each data point belonging to one of these subsets. The final subsets are known as Terminal or Leaf nodes, while the intermediate ones are referred to as Internal, Split or Decision nodes.
+
+![](images/decison_tree.png)
+
+In order to make predictions within each leaf node, the average outcome of the training data contained in that node is utilized.
+
+Numerous algorithms exist for growing decision trees, each differing in aspects such as the potential structure of the tree, the criteria for identifying splits, when to cease the splitting process...
+
+# CART
+
+We describe bellow a popular method for tree-based regression and classification called CART. We follow the terminology of @hastie2009 (chapter 9.2).
+
+Classification And Regression Tree (CART) (@Breiman83), is a recursive method:
+
+-   At the root of the tree we find the entire sample.
+
+-   Each node of the tree divides the sample into 2 branches, according to a feature variable (discrete, continuous or ordinal variable (threshold) or a nominal variable (set of categories).
+
+-   A terminal node is called a leaf. Usually the tree is represented upside down with its root at the top
+
+The tree is built by the following process: first the single variable is found which best splits the data into two groups ('best' will be defined later). The data is separated, and then this process is applied separately to each sub-group, and so on recursively until a stopping rule occurs (either no improvement can be made or the subgroups reach a minimum size).
+
+To illustrate the process we start with a Classification Tree on $x_1,x_2\in\mathbb R^2$ for the **Mixture** data set:
+
+The 10 centers for BLUE/ORANGE classes:
+
+```{r}
+#| code-fold: true
+# Simulated mixture (ORANGE/BLUE) from ESLII/ISLR
+# TODO change path
+load(file='../data/mixture.example.RData')
+
+x1_means <- mixture.example$means[,1]
+x2_means <- mixture.example$means[,2]
+mixture_means <- tibble(x1_means, x2_means) %>%
+    rowid_to_column() %>%
+    mutate(Y = if_else(rowid <= 10, "BLUE", "ORANGE"))
+
+ggplot(mixture_means) + 
+    geom_point(aes(x = x1_means, y = x2_means, col = Y), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    theme_void()
+```
+
+The 100 originals samples for each class from @hastie2009 [p. 12-16]:
+
+```{r}
+#| code-fold: true
+Y = mixture.example$y
+x1 = mixture.example$x[,1]
+x2 = mixture.example$x[,2]
+data_mixture_example <- tibble(Y, x1, x2) %>% mutate(Y = as_factor(Y))
+
+# Plot raw dataset
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    theme_void()
+```
+
+250 additional samples for each class simulated using @hastie2009 recipe, we show them together with the class centers:
+
+```{r}
+#| code-fold: true
+new_mixture <- readRDS("../1_Scoring_and_Logistic_Regression/new_mixture.rds")
+ggplot(new_mixture[c(1:250,5001:5251),]) + # we plot only the first 250 of each class
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    geom_point(data = mixture_means, aes(x = x1_means, y = x2_means, col =Y), size = 3, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange", "dodgerblue", "orange")) +
+    theme_void()
+```
+
+We use the R package `rpart` (Recursive PARTitioning), an open source implementation closely following the ideas from CART (@Breiman83). Details on the implementation are available [here](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf).
+
+We use here the default parameters, for each node we display the class label BLUE/ORANGE (B/O), the observed probabilities/populations of classes B/O per node:
+
+```{r}
+#| code-fold: show
+library(rpart)
+library(rpart.plot) 
+
+mixture_example_CART <- rpart(Y~., data = data_mixture_example, method = "class")
+# rpart.plot(mixture_example_CART, digits=4)
+mixture_example_CART_plot <- rpart(Y~.,
+                                   data = data_mixture_example %>%
+                                          mutate(Y = if_else(Y=="0", "BLUE", "ORANGE")),
+                                   method = "class")
+prp(mixture_example_CART_plot, type = 2, extra = 4, fallen.leaves = TRUE, digits=3,
+    box.col = c("dodgerblue", "orange")[mixture_example_CART$frame$yval],
+    # we indicate both Class 0-1 probabilities and number of observations for each node
+    node.fun = function(x, labs, digits, varlen) paste(labs, "\n", "B/O: ", x$frame$yval2[,2], " - ", x$frame$yval2[,3]))
+
+```
+
+Starting from the top of the tree and going down the `CART/rpart` algorithm splits at each node according to a binary decision.
+
+It ends up splitting the space into six regions, and then models the output by the mode/majority (classification) or proportion (scoring/probability) of $Y$ in each region. The result is the following:
+
+```{r, warning = FALSE}
+#| code-fold: true
+cutoff_1 <- 0.14
+cutoff_2 <- 2.2
+cutoff_3 <- 3.1
+cutoff_4 <- 0.98
+cutoff_5 <- 1
+
+x1_min <- -3
+x1_max <- 4.5
+x2_min <- -2
+x2_max <- 3
+
+r1x <- (x1_min + x1_max) / 2
+r1y <- (cutoff_1 + x2_min) / 2
+r2x <- (cutoff_2 + cutoff_3) / 2
+r2y <- (cutoff_1 + x2_max) / 2
+r3x <- (cutoff_3 + x1_max) / 2
+r3y <- (cutoff_1 + x2_max) / 2
+r4x <- (x1_min + cutoff_2) / 2
+r4y <- (cutoff_4 + x2_max) / 2
+r5x <- (x1_min + cutoff_5) / 2
+r5y <- (cutoff_1 + cutoff_4) / 2
+r6x <- (cutoff_2 + cutoff_5) / 2
+r6y <- (cutoff_1 + cutoff_4) / 2
+
+
+# Plot raw dataset
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    
+    geom_segment(aes(x = cutoff_2, y = cutoff_1, xend = cutoff_2, yend = x2_max)) +
+    
+    geom_segment(aes(x = cutoff_3, y = cutoff_1, xend = cutoff_3, yend = x2_max)) +
+    
+    geom_segment(aes(x = x1_min, y = cutoff_4, xend = cutoff_2, yend = cutoff_4)) +
+    
+    geom_segment(aes(x = cutoff_5, y = cutoff_1, xend = cutoff_5, yend = cutoff_4)) +
+    
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+```
+
+At each step, the input variable and splitting rule is chosen to achieve a best fit given some criterion. Then one or both of the resulting regions are split into two more regions, and this process is continued, until some stopping rule is applied.
+
+For example, with the Mixture data, `CART/rpart` first splits at $x_2=s_1=0.14$:
+
+```{r, warning = FALSE}
+#| code-fold: true
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    annotate("text", x=r1x, y=r1y, label = "R[1]", parse=TRUE) +
+    annotate("text", x=x1_min-0.25, y=cutoff_1, label = "s[1]", parse=TRUE) +
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+   
+```
+Then, the region $x_2 \geq s_1$ is split at $x_1 = s_2 = 2.2$:
+
+```{r, warning = FALSE}
+#| code-fold: true
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    annotate("text", x=r1x, y=r1y, label = "R[1]", parse=TRUE) +
+    annotate("text", x=x1_min-0.25, y=cutoff_1, label = "s[1]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_2, y = cutoff_1, xend = cutoff_2, yend = x2_max)) +
+    annotate("text", x=cutoff_2, y=x2_max+0.2, label = "s[2]", parse=TRUE) +
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+   
+```
+
+
+Then, the region $x_2 \geq s_1, \mbox{ } x_1 > s_2$ is split at $x_1 = s_3 = 3.1$:
+
+```{r, warning = FALSE}
+#| code-fold: true
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    annotate("text", x=r1x, y=r1y, label = "R[1]", parse=TRUE) +
+    annotate("text", x=x1_min-0.25, y=cutoff_1, label = "s[1]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_2, y = cutoff_1, xend = cutoff_2, yend = x2_max)) +
+    annotate("text", x=cutoff_2, y=x2_max+0.2, label = "s[2]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_3, y = cutoff_1, xend = cutoff_3, yend = x2_max)) +
+    annotate("text", x=r2x, y=r2y, label = "R[2]", parse=TRUE) +
+    annotate("text", x=cutoff_3, y=x2_max+0.2, label = "s[3]", parse=TRUE) +
+    annotate("text", x=r3x, y=r3y, label = "R[3]", parse=TRUE) +
+  
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+```
+
+And the region $x_2 \geq s_1, \mbox{ } x_1 \leq s_2$ is split at $x_2 = s_4 = 0.98$:
+
+```{r, warning = FALSE}
+#| code-fold: true
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    annotate("text", x=r1x, y=r1y, label = "R[1]", parse=TRUE) +
+    annotate("text", x=x1_min-0.25, y=cutoff_1, label = "s[1]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_2, y = cutoff_1, xend = cutoff_2, yend = x2_max)) +
+    annotate("text", x=cutoff_2, y=x2_max+0.2, label = "s[2]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_3, y = cutoff_1, xend = cutoff_3, yend = x2_max)) +
+    annotate("text", x=r2x, y=r2y, label = "R[2]", parse=TRUE) +
+    annotate("text", x=cutoff_3, y=x2_max+0.2, label = "s[3]", parse=TRUE) +
+    annotate("text", x=r3x, y=r3y, label = "R[3]", parse=TRUE) +
+  
+    geom_segment(aes(x = x1_min, y = cutoff_4, xend = cutoff_2, yend = cutoff_4)) +
+    annotate("text", x=x1_min-0.25, y=cutoff_4, label = "s[4]", parse=TRUE) +
+    annotate("text", x=r4x, y=r4y, label = "R[4]", parse=TRUE) +
+
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+```
+
+Finally only the region $x_2 \geq s_1, \mbox{ } x_1 \leq s_2, \mbox{ } x_2 < s_4$ is split at $x_1 = s_5 = 1$.
+
+The result of this process is a partition into the six regions $R_1, R_2, . . . , R_6$ shown below:
+
+```{r, warning = FALSE}
+#| code-fold: true
+ggplot(data_mixture_example) + 
+    geom_point(aes(x = x1, y = x2, col = Y), shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    geom_hline(yintercept = cutoff_1) +
+    annotate("text", x=r1x, y=r1y, label = "R[1]", parse=TRUE) +
+    annotate("text", x=x1_min-0.25, y=cutoff_1, label = "s[1]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_2, y = cutoff_1, xend = cutoff_2, yend = x2_max)) +
+    annotate("text", x=cutoff_2, y=x2_max+0.2, label = "s[2]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_3, y = cutoff_1, xend = cutoff_3, yend = x2_max)) +
+    annotate("text", x=r2x, y=r2y, label = "R[2]", parse=TRUE) +
+    annotate("text", x=cutoff_3, y=x2_max+0.2, label = "s[3]", parse=TRUE) +
+    annotate("text", x=r3x, y=r3y, label = "R[3]", parse=TRUE) +
+  
+    geom_segment(aes(x = x1_min, y = cutoff_4, xend = cutoff_2, yend = cutoff_4)) +
+    annotate("text", x=x1_min-0.25, y=cutoff_4, label = "s[4]", parse=TRUE) +
+    annotate("text", x=r4x, y=r4y, label = "R[4]", parse=TRUE) +
+  
+    geom_segment(aes(x = cutoff_5, y = cutoff_1, xend = cutoff_5, yend = cutoff_4)) +
+    annotate("text", x=r5x, y=r5y, label = "R[5]", parse=TRUE) +
+    annotate("text", x=cutoff_5, y=x2_max+0.2, label = "s[5]", parse=TRUE) +
+    annotate("text", x=r6x, y=r6y, label = "R[6]", parse=TRUE) +
+  
+  
+    scale_x_continuous(breaks = seq(x1_min, x1_max, 1)) +
+    scale_y_continuous(breaks = seq(x2_min, x2_max, 1)) +
+    coord_cartesian(xlim = c(x1_min, x1_max), ylim = c(x2_min, x2_max), expand = FALSE, clip = 'off') +
+    theme_bw() +
+    theme(plot.margin = unit(c(0.3, 0.1, 0.1, 0.1),
+                                "inches"))
+```
+
+We now seek to understand how `CART/rpart` proceeds to grow a decision tree.
+
+The data set consists of $p$ inputs or predictors and a response variable or output $Y$, with $n$ observations: $(x_i, y_i)$ for $i = 1,\cdots,n$, and $x_i = (x_{i1},\cdots,x_{ip})$.
+
+The CART algorithm needs to automatically decide which variables to split on and which split points or threshold to use.
+
+Suppose first that we have a partition into $M$ regions $R_1, R_2, . . . , R_M$. Given a leaf node $m$ representing a region $R_m$ containing $n_m$ observations, we define for $k \in \{0,1\}$:
+
+$$
+\hat p^m_{k}=\frac{1}{\textrm{Card}\{x_i \in R_m\}}\sum_{x_i \in R_m}\mathbb{1}_{y_i=k}
+$$
+
+the proportion of response $1$ or $0$ in leaf node $m$.
+
+CART models the class of output variable as a constant in each region $m$.
+
+Let $C_m$ be the class of output variable in region $m$, for $k \in \{0,1\}$ we estimate $\mathbf P(C_m=k)$ with $\hat p^m_{k}$.
+
+And we classify the region $m$ with $\hat C_m = \underset{k \in \{0,1\}}{\operatorname{argmax}}\hat p^m_{k}$.
+
+The CART algorithm is recursive (we will propose below a simplified implementation) so that we just have to understand how CART splits a node at any step and more precisely what criterion is used.
+
+## Splitting criterion
+
+In order to classify well the data, CART seeks as much as possible to obtain pure leaf nodes (i.e. high probability for one class).
+
+At each step CART selects a predictor $X_j$ and a split-point $s$ such that splitting the current region $\mathcal R$ into the regions $\mathcal R_L(j,s)=\{X|Xj < s\}$ and $\mathcal R_R(j,s)=\{X|Xj ≥ s\}$ leads to the greatest possible reduction in a well chosen measure of impurity.
+
+Given a leaf node $m$ representing a region $R_m$ containing $n_m$ observations we denote $\mathcal I_m$ a measure of node impurity, three measures are usually retained:
+
+-   the misclassification error: $\mathcal I_m =\frac{1}{n_m}\sum_{x_i \in R_m}\mathbb{1}_{y_i\neq \hat C_m}= 1-\hat p^m_{\hat C_m}=1-\max(\hat p^m, 1-\hat p^m)$ the fraction of observations in the region that do not belong to the most common class
+
+-   the Gini index: $\mathcal I_m=\sum_{k}\hat p^m_{k}(1-\hat p^m_{k})=2\hat p^m(1-\hat p^m)$
+
+-   the cross-entropy or deviance: $\mathcal I_m=-\sum_{k} \hat p^m_{k}\log(1-\hat p^m_{k})=-\hat p^m\log(\hat p^m)- (1-\hat p^m)\log(1-\hat p^m)$
+
+where we have denoted $\hat p^m=\hat p^m_{1}=1-\hat p^m_{0}$
+
+```{r}
+#| code-fold: true
+imp_plot <- tibble(x=seq(0,1,by=0.01))
+imp_gini <- function(p){
+  2*p*(1-p)
+}
+imp_gini_V <- Vectorize(imp_gini)
+
+imp_entropy <- function(p){
+  if(p==0 | p==1){
+    ent = 0
+  } else{
+    ent = -p*log(p) - (1-p)*log(1-p)
+  }
+  ent
+}
+imp_entropy_V <- Vectorize(imp_entropy)
+
+imp_misclass <- function(p){
+  1-max(p,1-p)
+}
+imp_misclass_V <- Vectorize(imp_misclass)
+
+imp_plot <- imp_plot  %>%
+  mutate(gini = imp_gini_V(x),
+         entropy = imp_entropy_V(x),
+         misclass = imp_misclass_V(x)) %>% 
+  pivot_longer(!x, names_to = "impurity", values_to = "val")
+ggplot(imp_plot, aes(x=x,y=val, col=impurity))+geom_line()
+
+```
+
+We consider $\mathcal R_L(j,s)$ and $\mathcal R_R(j,s)$ two nodes/regions corresponding to a potential node/region $\mathcal R$ split. Having chosen an impurity measure CART seeks to minimize the weighted average of $\mathcal R_L(j,s)$ and $\mathcal R_R(j,s)$ impurities :
+
+$$
+n_L\mathcal I(\mathcal R_L(j,s))+n_R\mathcal I(\mathcal R_R(j,s))
+$$
+
+A justification to use Gini or Entropy instead of Misclassification is given in @hastie2009: first these two measures are differentiable, hence more amenable to numerical optimization, also considering the following example they favor purity within the nodes:
+
+-   a binary classification problem with $400$ observations per class $(400, 400)$
+-   first split: $(300, 100)$ with $\hat p^m_0=0.75$ and $(100, 300)$ with $\hat p^m_1=0.75$
+-   second split: $(200, 400)$ with $\hat p^m_1=0.666$ and $(200, 0)$ with with $\hat p^m_0=1$
+
+```{r}
+#| code-fold: true
+n_l_1 <- 400
+n_r_1 <- 400
+p_l_1 <- 0.75
+p_r_1<- 0.75
+
+gini_1 <- (n_l_1 * imp_gini(p_l_1) + n_r_1 * imp_gini(p_r_1)) / (n_l_1  + n_r_1 )
+entropy_1 <- (n_l_1 * imp_entropy(p_l_1) + n_r_1 * imp_entropy(p_r_1)) / (n_l_1  + n_r_1 )
+misclass_1 <- (n_l_1 * imp_misclass(p_l_1) + n_r_1 * imp_misclass(p_r_1)) / (n_l_1  + n_r_1 )
+
+
+n_l_2 <- 600
+n_r_2 <- 200
+
+p_l_2 <- 2/3
+p_r_2 <- 1
+
+gini_2 <- (n_l_2 * imp_gini(p_l_2) + n_r_2 * imp_gini(p_r_2)) / (n_l_2  + n_r_2 )
+entropy_2 <- (n_l_2 * imp_entropy(p_l_2) + n_r_2 * imp_entropy(p_r_2)) / (n_l_2  + n_r_2 )
+misclass_2 <- (n_l_2 * imp_misclass(p_l_2) + n_r_2 * imp_misclass(p_r_2)) / (n_l_2  + n_r_2 )
+```
+
+We now look at the weighted average impurities for each split:
+
+-   first split : Gini: `r round(gini_1,2)` / Entropy: `r round(entropy_1,2)` / Misclassification: `r round(misclass_1,2)`
+-   second split : Gini: `r round(gini_2,2)` / Entropy: `r round(entropy_2,2)` / Misclassification: `r round(misclass_2,2)`
+
+Both splits share a Misclassification rate of $0.25$ while Gini and Entropy are decreasing for second split. Intuitively, these two measures will favor purer node than Misclassification and are usually preferred in decision tree algorithms.
+
+## Tree-building process
+
+Having chosen a criterion, the CART algorithm uses a top-down, greedy approach that is known as recursive binary splitting:
+
+-   top-down: begins at the top of the tree and then recursively splits the input space; each split produces two new branches further down on the tree.
+
+-   greedy: at each step of the building process, the best split is made without looking ahead and trying to pick a split that will lead to a better tree in some future step.
+
+**Categorical predictors**
+
+Assuming we have a categorical feature with $p$ possible values. We seek the best split into two groups, there is $2^{p-1}-1$ possible splits, which can be prohibitive for large $p$.
+
+A trick usually implemented, working only for binary classification, is to transform categorical predictors. Usually the proportion of class $1$ for each category is computed, and the algorithm splits on this numerical/ordinal column only needing $p$ splits. This trick and its proof are available in @Breiman83.
+
+In @hastie2009 it is noted that categorical predictors with many levels usually lead to severe overfitting in the context of decision trees, so that such variables might have to be transformed (by regrouping categories) or avoided.
+
+**Implementation for quantitative predictors**
+
+We implement below a simple (only working with quantitative variables), naive (not optimized with virtually no exception handling) and unsafe recursive method reproducing roughly the `CART/rpart` algorithm.
+
+First we define helper functions for the impurity measures:
+
+Entropy:
+```{r}
+#| code-fold: show
+entropy <- function(tbl, y, verbose = FALSE){
+  # assumes y is a factor
+  p <- tbl %>% select(!!y) %>% table()/nrow(tbl)
+  if (verbose) {print(p)}
+  sum(-p*log2(p+1e-9))
+}
+```
+
+and Gini:
+```{r}
+#| code-fold: show
+gini <- function(tbl, y, verbose = FALSE){
+  # assumes y if a factor
+  if(nrow(tbl) == 0) return(0)
+  # computes the proportion of class 0-1 per node
+#   Y
+#  0   1 
+#  1-p% p% 
+  p <- tbl %>% select(!!y) %>% table()/nrow(tbl)
+  if (verbose) {print(p)}
+  sum(p*(1-p))
+}
+```
+
+
+Then we define a function returning for a given choice of continuous variable and split value, the impurity of the two children nodes and their weighted average impurity:
+
+```{r}
+#| code-fold: show
+impurity_decrease <- function(tbl_node, y_name, x_name, split_value, impurity = gini, min_leaf = 5){
+    
+    # Whenever any of left/right child node contains less than min_leaf observations we return a default value for impurity
+    # excluding de facto the split to be taken into account
+    ret_default <- list("impurity_left"=666,
+                "impurity_right"=666,
+                "impurity_total"=666)
+    
+    tbl_left <- tbl_node %>% filter(!!x_name < !!split_value)
+    n_left <- nrow(tbl_left)
+    if (n_left < min_leaf){return(ret_default)} 
+    impurity_left <- impurity(tbl_left, y_name)
+    
+    tbl_right <- tbl_node %>% filter(!!x_name >=!!split_value)
+    n_right <- nrow(tbl_right)
+    if (n_right < min_leaf){return(ret_default)}
+    impurity_right <- impurity(tbl_right, y_name)
+    
+    return(list("impurity_left"=impurity_left,
+                "impurity_right"=impurity_right,
+                "impurity_total"=n_left/(n_left+n_right)*impurity_left+ n_right/(n_left+n_right)*impurity_right))
+}
+```
+
+Using this `impurity_decrease` function and given a node, the following `max_impurity_decrease` function computes for each variable $j$ and split value $s$ the impurity decrease, ultimately seeking the best split in terms of weighted average impurity:
+
+```{r}
+#| code-fold: show
+max_impurity_decrease <- function(tbl_node, y_name, x_names, impurity = gini, min_leaf = 5, midpoint = FALSE){
+    imp_node = impurity(tbl_node, y_name)
+    list_all_x <- list()
+    tbl_res <- tibble(feature_split = "zzz", split_rule = -666, imp_left = 666, imp_right = 666, imp_total = 666)
+    for (x_name in x_names){
+        list_x <- list()
+       # print(x_name)
+        splits <- unique(tbl_node %>% pull(x_name))
+        # modify the algorithm to split on 'midpoint' value for continuous variable (some decision trees do (CART) other don't (C4.5))
+        if(midpoint){
+            splits <- sort(splits)
+            splits <- splits[-length(splits)] + diff(splits)/2
+        }
+       
+        for (split in splits){
+            # print(split)
+            imp_dec <- impurity_decrease(tbl_node, y_name, x_name, split, impurity, min_leaf)
+            # list_x[[j]] <- c(split, imp_dec)
+            tbl_res <-  bind_rows(tbl_res,
+                                  tibble(feature_split = as.character(x_name),
+                                         split_rule = split,
+                                         imp_node = imp_node,
+                                         imp_left = imp_dec[["impurity_left"]],
+                                         imp_right = imp_dec[["impurity_right"]],
+                                         imp_total = imp_dec[["impurity_total"]]))
+        }   
+
+    }
+    return(tbl_res)
+}
+```
+
+We test this function with the mixture data set, starting at the root node using Gini impurity measure:
+
+```{r}
+tbl_node <- data_mixture_example
+y_name <- as.name("Y")
+x_names = c(as.name("x1"), as.name("x2"))
+test <- max_impurity_decrease(tbl_node, y_name, x_names)
+(test <-test %>%
+    filter(feature_split!="zzz", imp_total != 666) %>% 
+    arrange(imp_total))
+```
+
+We plot for variables $x_1$ and $x_2$ the weighted average Gini index for each possible split of data:
+
+```{r}
+ggplot(test , aes(x=split_rule, y =imp_total, col = feature_split)) + geom_point()
+```
+The best split in terms of impurity decrease is shown below:
+```{r}
+(node_val <- test %>%
+    dplyr::slice(which.min(imp_total)))
+```
+
+It is achieved for $x_2$ and a value of $0.15$ which is consistent with the `R` implementation.
+
+The slightly different value $0.1509$ found by our toy implementation vs $0.1441$ for `rpart` is because `CART/rpart` splits variables at a midpoint between successive values in data set, while we split 'on' the exact values, see for example discussion [here](https://stackoverflow.com/questions/6290057/how-decision-tree-calculate-the-splitting-attribute?rq=3)).
+
+Indeed when looking at the adjacent value to our split with minimum impurity:
+
+```{r}
+(node_val_midpoint <- test %>%
+   filter(feature_split=='x2', split_rule <= 0.1509, ) %>% 
+   arrange(desc(split_rule)) %>% 
+   head(2))
+```
+
+and taking the average value we verify that `rpart` splits on midpoint value:
+
+```{r}
+(node_val_midpoint %>%
+   filter(split_rule < 0.16) %>% 
+   summarize(midpoint=mean(split_rule)) %>% 
+   pull(midpoint))
+```
+
+All of this nitpicking shows that each decision tree implementation is specific and when using a new one it is a good idea to check some details on simple cases. 
+
+As a matter of fact modern decision tree (boosting) algorithm optimize the way tree splitting is performed see for example [LightGBM](https://lightgbm.readthedocs.io/en/stable/Features.html#optimization-in-speed-and-memory-usage) using histograms/binning for numerical variables and [XGBoost](https://xgboost.readthedocs.io/en/stable/treemethod.html) using various methods from iterating over all values (`exact`) to histogram methods similar to LightGBM (`hist`). XGBoost developpers TODO [^3].
+
+[^3]: In [XGBoost documentation](https://xgboost.readthedocs.io/en/stable/treemethod.html) we find this disclaimer: 'However, as xgboost is largely driven by community effort, the actual implementations have some differences than pure math description. Result might be slightly different than expectation, which we are currently trying to overcome.'
+
+So we have slightly modified our splitting algorithm implementation above (`max_impurity_decrease`) with the option to split on midpoints so that it matches the value from `CART/rpart`:
+
+```{r}
+tbl_node <- data_mixture_example
+y_name <- as.name("Y")
+x_names = c(as.name("x1"), as.name("x2"))
+test_midpoint <- max_impurity_decrease(tbl_node, y_name, x_names, midpoint = TRUE)
+(test_midpoint <-test_midpoint %>%
+    filter(feature_split!="zzz", imp_total != 666) %>% 
+    dplyr::slice(which.min(imp_total)))
+```
+
+We then implement the recursive splitting algorithm, specifying some stopping rules (the node is pure, a maximum tree depth is attained, a minimum number of observations per node is attained).
+
+At each step a node/list stores the relevant information: the split variable and value, the left/right children (two nodes/lists), impurity for the node, number of observations for class $0/1$:
+
+```{r}
+#| code-fold: show
+tbl_node <- data_mixture_example
+y_name <- as.name("Y")
+x_names = c(as.name("x1"), as.name("x2"))
+
+node <- list("data" = tbl_node,
+             "left" = list(),
+             "right" = list(),
+             "impurity" = 0.5,
+             "target" = y_name,
+             "features" = x_names,
+             "split" = 666,
+             "feature_split" = "",
+             "is_leaf" = FALSE,
+             "n_zero" = 0,
+             "n_one" = 0,
+             "p1" = 0,
+             "vote" = 0)
+```
+
+We define a `break_at` function implementing the best split for a given node and returning the splitting rule (variable to split, split value):
+
+```{r}
+#| code-fold: show
+break_at <- function(node, min_leaf, midpoint){
+    tbl_node <- node[["data"]]
+    y_name <- node[["target"]]
+    x_names <- node[["features"]]
+    
+    break_node <- max_impurity_decrease(tbl_node, y_name, x_names, gini, min_leaf, midpoint)
+    break_node <- break_node %>% 
+        filter(feature_split!="zzz",
+               imp_total != 666,
+               imp_node != 0) %>% # don't split when node is pure (ie 0 impurity)
+        dplyr::slice(which.min(imp_total))
+    return(break_node)
+}
+```
+
+The function below `conditional_split` looks at a provided children node (left or right) to check if it is terminal given a stopping rule (either the max tree depth is attained, or there is a single element in the node).
+If not the tree continues to grow (ie the recursion continues and the recursive function `grow_decision_tree` defined below is called). 
+It also computes metrics (number of observations per class, probabilities of classes 0-1, vote ...) to fill the given node with useful information:
+
+```{r}
+#| code-fold: show
+conditional_split <- function(node, depth, max_depth, min_leaf, midpoint)
+{
+  
+  if(nrow(node[["data"]]) == 1 | depth == max_depth) {
+      node[["is_leaf"]] <- TRUE
+      
+      y_name <- node[["target"]] 
+      table_node <- node[["data"]] %>%
+      select(!!y_name) %>%
+      table()
+      # produces a table for 0-1 classes
+      # target variable
+      # 0    1 
+      # n_0 n_1 
+      
+      #print(table_node)
+      
+      n_zero_node<- as.numeric(table_node[1])
+      node[["n_zero"]] <- n_zero_node
+      n_one_node<- as.numeric(table_node[2])
+      node[["n_one"]] <- n_one_node
+      
+      prob_node <- n_one_node / (n_zero_node+ n_one_node)
+      #print(prob_node)
+      node[["p1"]] <- prob_node
+      
+      vote_node<- ifelse(n_one_node> n_zero_node, 1, 0)
+      node[["vote"]] <- vote_node
+      
+      return(node)}
+  else grow_decision_tree(node, depth + 1, max_depth, min_leaf, midpoint)
+}    
+```
+
+Finally the function `grow_decision_tree` implements the recursion, breaking the current node into left and right children nodes and conditionally to the stopping rule splitting each child node:
+
+```{r}
+#| code-fold: show
+grow_decision_tree <- function(node, depth = 1, max_depth = 2, min_leaf = 5, midpoint = TRUE)
+{
+  # before split
+  tbl_node <- node[["data"]]  
+  x_names  <- node[["features"]]  
+  y_name <- node[["target"]]  
+  
+  table_node <- tbl_node %>%
+      select(!!y_name) %>%
+      table()
+  # print(table_node)
+  
+  n_zero_node<- as.numeric(table_node[1])
+  node[["n_zero"]] <- n_zero_node
+  n_one_node<- as.numeric(table_node[2])
+  node[["n_one"]] <- n_one_node
+  
+  prob_node <- n_one_node / (n_zero_node+ n_one_node)
+  # print(prob_node)
+  node[["p1"]] <- prob_node
+  
+  vote_node<- ifelse(n_one_node> n_zero_node, 1, 0)
+  node[["vote"]] <- vote_node
+  
+  # split using break node function
+  break_node <- break_at(node, min_leaf, midpoint)
+  if(nrow(break_node) == 0) {
+      node[["is_leaf"]] <- TRUE
+      return(node)}
+  x_name_node <- as.name(break_node %>% pull(feature_split))
+  split_value_node <- break_node %>% pull(split_rule)
+
+  node[["impurity"]] <- break_node %>% pull(imp_node)
+  node[["split"]] <- split_value_node
+  node[["feature_split"]] <- x_name_node
+  
+  
+  # Recursion, calling conditional split for left/right children
+  tbl_left <- tbl_node %>% filter(!!x_name_node < !!split_value_node)  
+
+  node_left <-  list("data" = tbl_left,
+                     "left" = list(),
+                     "right" = list(),
+                     "impurity" = break_node %>% pull(imp_left),
+                     "target" = y_name,
+                     "features" = x_names,
+                     "split" = 666,
+                     "feature_split" = "",
+                     "is_leaf" = FALSE,
+                     "p1" = 666,
+                     "vote" = 666)
+  
+  node_left <- conditional_split(node_left, depth, max_depth, min_leaf, midpoint)
+  
+  tbl_right <- tbl_node %>% filter(!!x_name_node >= !!split_value_node)  
+
+  node_right <-  list("data" = tbl_right,
+                     "left" = list(),
+                     "right" = list(),
+                     "impurity" = break_node %>% pull(imp_right),
+                     "target" = y_name,
+                     "features" = x_names,
+                     "split" = 666,
+                     "feature_split" = "",
+                     "is_leaf" = FALSE,
+                     "p1" = 666,
+                     "vote" = 666)
+  
+  node_right <- conditional_split(node_right, depth, max_depth, min_leaf, midpoint)
+  
+  node[["left"]] <- node_left
+  node[["right"]] <- node_right
+  return(node)
+
+}
+
+# inspired from this pattern:
+# https://stackoverflow.com/questions/61621974/r-recursive-tree-algorithm-with-a-random-split
+# mydata <- data.frame(x = c(10, 20, 25, 35), y = c(-10.5, 6.5, 7.5, -7.5))
+# 
+# conditional_split <- function(df, depth, max_depth)
+# {
+#   if(nrow(df) == 1 | depth == max_depth) return(df)
+#   else grow_tree(df, depth + 1, max_depth)
+# }
+# 
+# grow_tree <- function(df, depth = 1, max_depth = 3)
+# {
+#   break_at <- sample(nrow(df) - 1, 1)
+#   branched <- list(left = df[1:break_at,], right = df[-seq(break_at),])
+#   lapply(branched, conditional_split, depth, max_depth)
+# }
+# 
+# tree <- grow_tree(mydata, max_depth = 2)
+
+```
+
+We also define a recursive function to help visualize the decision tree once it is "fitted":
+
+```{r}
+#| code-fold: show
+print_tree <- function(grown_tree, shift ='', precision = 3){
+    # Node
+    if (grown_tree$is_leaf == TRUE) {
+        
+        p1 <- round(grown_tree$p1,2)
+        class <- grown_tree$vote
+        n_zero <- grown_tree$n_zero
+        n_one <- grown_tree$n_one
+        impurity <- round(grown_tree$impurity,3)
+        
+        cat(paste0(shift, '  '), glue::glue('prob 1: {p1}, class: {class}, 0-1: {n_zero}/{n_one}, impurity: {impurity}'))
+    } else{
+        # Else recurse
+        # First print the splitting variable and rule
+        if(shift == ''){
+            cat('Root' , '\n')
+        }
+        split <- grown_tree$split
+        feature_split <- grown_tree$feature_split
+        
+        #print(glue::glue('Node {feature_split} < {split} Y/N?'))
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} < {round(split, precision)}'), '\n')
+        cat(print_tree(grown_tree$left, paste0(shift, '  ')),'\n')
+        
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} >= {round(split, precision)}'), '\n')
+        cat(print_tree(grown_tree$right, paste0(shift, '  ')), '\n')
+    }
+ 
+    
+}
+```
+
+We test the recursive algorithm on the mixture data set: 
+```{r}
+#| code-fold: show
+mixture_node <- grow_decision_tree(node, max_depth = 4, min_leaf = 7, midpoint = TRUE)
+```
+
+We do the same specifying similar parameters to `rpart`:
+
+
+```{r}
+#| code-fold: show
+mixture_example_CART <- rpart(Y~.,
+                              data = data_mixture_example,
+                              control = rpart.control(cp = 0.000001,
+                                                      minsplit = 7 ,
+                                                      minbucket = 7,
+                                                      maxdepth = 4),
+                              method = "class")
+```
+
+To allow a precise check we show for each node/leaf both class 0/1 probabilities and number of observations (left: class O / BLUE, right: class 1 / ORANGE):
+
+```{r}
+prp(mixture_example_CART, type = 2, extra = 4, fallen.leaves = TRUE, digits=4,
+    box.col = c("dodgerblue", "orange")[mixture_example_CART$frame$yval],
+    # we indicate both Class 0-1 probabilities and number of observations for each node
+    node.fun = function(x, labs, digits, varlen) paste(labs, "\n", "B/O: ", x$frame$yval2[,2], " - ", x$frame$yval2[,3]))
+```
+
+We compare our implementation with `rpart`: 
+
+```{r}
+print_tree(mixture_node, '', 4)
+
+print(mixture_example_CART)
+```
+
+They are almost equivalent. The slight difference between our implementation and `rpart`: even if a split is admissible for terminal nodes improving the impurity, `rpart` seems to undo the split if it results in two terminal nodes predicting the same class).
+
+To further verify this point we use the `Python/scikit-learn` implementation of decision trees using `reticulate` package.
+This packages allows `R` to interact with `Python`, more details [here](# https://rstudio.github.io/reticulate) and [here](# https://www.r-bloggers.com/2020/04/how-to-run-pythons-scikit-learn-in-r-in-5-minutes/).
+
+We first check and set our python environment:
+
+```{r}
+#| code-fold: show
+library(reticulate)
+conda_list()
+```
+```{r, message=FALSE}
+#| include: false
+use_condaenv("teaching-python", required = TRUE)
+py_config()
+```
+We import the needed python packages:
+
+```{python}
+#| code-fold: show
+import numpy as np
+import pandas as pd
+from matplotlib import pyplot as plt
+from sklearn import tree
+```
+
+
+We pass the data objects created within `R` chunks to `Python` using the `r` object (e.g. `r.x` would access to `x` variable created within `R` from `Python`):
+
+```{r}
+#| code-fold: show
+Y_sk = data_mixture_example %>% select(Y)
+X_sk = data_mixture_example %>% select(x1,x2)
+```
+
+```{python}
+X = r.X_sk
+Y = r.Y_sk
+X.head()
+Y[0:5]
+```
+We then fit a `scikit-learn` `DecisionTreeCLassifier` implementing a version of CART, for more details see [scikit-learn User Guide](https://scikit-learn.org/stable/modules/tree.html) and [Documentation ](https://scikit-learn.org/stable/modules/generated/sklearn.tree.DecisionTreeClassifier.html#sklearn.tree.DecisionTreeClassifier). 
+
+We use similar parameters as before:
+```{python}
+#| code-fold: show
+clf = tree.DecisionTreeClassifier(max_depth=4, min_samples_leaf=7, min_samples_split=7, random_state=0)
+clf.fit(X, Y)
+```
+
+We then visualize the resulting decision tree:
+```{python}
+#| code-fold: show
+plt.figure(figsize=(25,17))
+tree.plot_tree(clf, filled=True, fontsize=18)
+
+# basic plotting export unusable images
+# plt.savefig('images/check_tree_mixture.svg')
+
+# export instead rotated tree (idea from Matt Harrison XGBoost book) 
+tree.export_graphviz(clf, 'images/check_tree_mixture.dot',
+                     feature_names=X.columns, filled=True, rotate=True)
+```
+
+```{r}
+system("dot -Tsvg images/check_tree_mixture.dot -o images/check_tree_mixture.svg")
+```
+
+We verify that our toy implementation of `CART` matches the `scikit-learn` implementation on the Mixture data set with comparable parameters (note that the default colors from `graphviz` are the opposite of the Mixture data set, ie Class 0 / BLUE filled in orange, Class 1 / ORANGE filled in blue):
+![](images/check_tree_mixture.svg)
+It is comparable to our implementation:
+
+```{r}
+print_tree(mixture_node, '', 4)
+```
+
+We do the same job with the `Iris` data set which is a multivariate data set used and made famous by the British statistician and biologist Ronald Fisher in his 1936 paper about linear discriminant analysis, we restrict to a binary classification problem excluding the `setosa` family.
+
+We fit a decision tree for with max depth 2:
+```{r}
+data(iris)
+
+tbl_iris = iris %>%
+    as_tibble %>%
+    filter(Species!='setosa') %>% 
+    droplevels()
+
+node <- list("data" = tbl_iris,
+             "left" = list(),
+             "right" = list(),
+             "impurity" = 666,
+             "target" = as.name("Species"),
+             "features" = c(as.name("Sepal.Length"), as.name("Sepal.Width"), as.name("Petal.Length"), as.name("Petal.Width")),
+             "split" = 666,
+             "feature_split" = "",
+             "is_leaf" = FALSE,
+             "n_zero" = 0,
+             "n_one" = 0,
+             "p1" = 0,
+             "vote" = 0)
+
+iris_node <- grow_decision_tree(node, max_depth = 2, min_leaf = 5)
+```
+
+```{r}
+print_tree((iris_node))
+```
+
+```{r}
+l <- lapply(c(0.1,0.01), function(x){
+  X_rpart = rpart(
+    Species ~ .,
+    method = "class",
+    data = tbl_iris,
+    control = rpart.control(minsplit = 5, minbucket = 5,cp=x)
+  )
+})
+
+for (i in 1:length(l)) {
+  rpart.plot(l[[i]])
+}
+
+```
+
+```{r}
+Y_sk = tbl_iris%>% select(Species)
+X_sk = tbl_iris %>% select(-Species)
+```
+
+```{python}
+X = r.X_sk
+Y = r.Y_sk
+```
+
+```{python}
+#| output: false
+#| include: false
+from sklearn import tree
+clf = tree.DecisionTreeClassifier(max_depth=2, min_samples_leaf=5, min_samples_split=5, random_state=0)
+clf.fit(X, Y)
+tree.plot_tree(clf, filled=True)
+plt.savefig('images/check_tree_iris.svg')
+```
+
+![](images/check_tree_iris.svg){.lightbox}
+
+## Building strategy - Pruning
+
+The tree-building process described just above is likely to produce good predictions on the training set, but is also likely to overfit the data, leading to poor predictions on testing set or new data. This is because the resulting tree might be too complex. 
+
+In an extreme case, if we do not restrict the tree depth and allow a low minimum number of observations per leaf, many observations could be alone in their own region/node. 
+
+Conversely, a smaller tree with fewer splits/nodes/regions might underfit, missing key patterns in the data.
+
+The right balance leading to lower variance and better interpretation at the cost of a little bias.
+
+We can see the number of nodes or tree size as a parameter allowing to tune the model complexity. 
+
+We have to select this parameter.
+
+The CART algorithm mainly uses the number of terminal nodes. The tree depth can also be used.
+
+The CART strategy is to build a large tree $T_0$ and then sequentially prune it to obtain a sequence of nested trees.
+
+Then a Cost complexity criterion is defined as:
+
+$$
+C_\alpha(T)=\hat R(T)+\alpha|T|
+$$ where $\hat R(T)$ denote the empirical risk or a similar metric, $|T|$ the number of terminal nodes in $T$ and $\alpha$ is a parameter.
+
+The idea is for a sequence of $\alpha$, find the subtree $T_\alpha \subset T_0$ minimizing $C_\alpha(T)$.
+
+Then cross-validation is chosen to find and 'optimal' value of $\alpha$.
+
+## Exercises
+
+### Exercice 1
+
+Using the Desbois data set, build and draw a decision tree using `rpart`.
+
+Compare a large tree and a smaller tree in terms of ROC/AUC/prediction on a testing set.
+
+Try to understand the output of the `printcp` function.
+
+Choose a terminal number of leafs and prune the tree using the `prune` function.
+
+Select the optimal `cp` for your tree (you can use a plot) and compare to the large and small models in terms of AUC.
+
+### Exercice 2 (Inspired from A. Géron book)
+
+```{python}
+# https://github.com/ageron/handson-ml3/blob/main/06_decision_trees.ipynb 
+np.random.seed(6)
+X_square = np.random.rand(10, 2) - 0.5
+y_square = (X_square[:, 0] > 0).astype(np.int64)
+# print(X_square)
+# print(X_square[:, 0])
+# print(y_square)
+angle = np.pi / 4  # 45 degrees
+rotation_matrix = np.array([[np.cos(angle), -np.sin(angle)],
+                            [np.sin(angle), np.cos(angle)]])
+X_rotated_square = X_square.dot(rotation_matrix)
+```
+
+```{r}
+# Adapted from Aurélien Géron 
+# Géron, A. (2022). Hands-On Machine Learning with Scikit-Learn, Keras, and TensorFlow
+# Chapter 6. Decision Trees / Sensitivity to axis orientation
+set.seed(1987)
+X <- matrix(runif(200), nrow=100, ncol=2) - 0.5
+Y <- as.integer(X[,1] > 0)
+
+angle <- pi / 4 
+rotation_matrix <- rbind(c(cos(angle),-sin(angle)),
+                        c(sin(angle), cos(angle)))
+X_rotated <- X %*% rotation_matrix
+
+data <- tibble(Y, x1 = X[,1], x2 = X[,2])
+data_rotated <- tibble(Y, x1 = X_rotated[,1], x2 = X_rotated[,2])
+ggplot(data_rotated %>% mutate(Y=as.factor(Y)), aes(x=x1, y=x2, col = Y)) + geom_point()
+```
+
+Fit a decision tree on the rotated dataset. 
+
+Plot and comment the decision boundary in terms of generalization/test error.
+
+Can you do better? Think of PCA for example.
+
+# Ensemble methods - Boosting
+
+Boosting is a machine learning technique developed in the nineties. 
+It was originally introduced for binary classification problems and it has been extended to other supervised learning problems (multiclass, regression, ranking, survival). 
+
+The core idea behind Boosting is to combine the predictions of several "weak" classifiers (ie slighlty better than random classifiers) to form a more robust and accurate model.
+
+We start by introducing `AdaBoost` which was (one of[^2]) the first successful implementation of the Boosting idea, introduced by Freund and Schapire in @adaboost1996.
+
+[^2]: For example in the context signal processing, the matching pursuit algorithm developed by Mallat and Zhang in 1993 is equivalent to a Boosting algorithm (Mallat, S., Zhang, Z. (1993). Matching pursuits with time-frequency dictionaries)
+
+## Adaboost
+
+The algorithm is described for example in Chapter 1 of @boosting2012 (Algorithm 1.1):
+
+![](images/adaboost_algo.png){fig-align="center"}
+A toy example is also introduced in the book, showing graphically the first three iterations of the algorithm on a simplified data set:
+
+![](images/adaboost_toy_example.png){fig-align="center"}
+
+![](images/adaboost_toy_example2.png){fig-align="center"}
+
+Following this algorithm description or pseudo code we implement a simplified version of AdaBoost using `rpart` decision trees as base/weak classifiers.
+
+We implement here a version with stumps (ie decision tree with depth 1), but any kind of weak learner can be used:
+```{r}
+#| code-fold: show
+# Function implementing the original AdaBoost algorithm (Algorithm 1.1)
+# as described in:
+# Schapire, R., Freund, Y. (2012). Boosting: Foundations and Algorithms
+# freely available here:
+# https://direct.mit.edu/books/oa-monograph/5342/BoostingFoundations-and-Algorithms
+
+# Iterative fitting of the weak learners (here cesision tree stumps) to data
+fit_original_adaboost <- function(data, M, smoothing=FALSE, verbose=FALSE){
+  # data is a tibble, we assume target variable is Y with labels in {-1, 1}
+  # M is an integer
+  
+  # Initialize observation weights: w^1_i = 1/n for i = 1,...,n
+  n <-  nrow(data)
+  w <-  rep(1, n) / n
+  
+  # Smoothing parameter see below
+  eps <- 0
+  if(smoothing){eps <- 1/n}
+  
+  
+  alpha <- numeric(M)
+  G <- list()
+  weak_learner <- list()
+  weights <- list()
+  weights[[1]] <- w
+  
+  Y_target <- as.integer(as.character(data$Y))
+  # For m = 1,...,M:
+  for (m in 1:M) {
+    # Train weak learner G^m(x) using distribution w^m
+    weak_learner[[m]] <- rpart(Y~., data = data, weights = w, 
+                               control = rpart.control(cp=-1,
+                                                       maxdepth = 1,
+                                                       minsplit = 0,
+                                                       minbucket = 1,
+                                                       maxsurrogate = 0,
+                                                       maxcompete = 0), method = "class")
+    # Compute error:
+    # err^m = [Sum_n w^m_i * 11(y_i<>G^m(x_i)]
+    G[[m]] <- as.integer(as.character(predict(weak_learner[[m]], type ="class")))
+    # store 11(y_i<>G^m(x_i)
+    misclass <- (G[[m]]!=Y_target)
+    err <- sum(w * misclass) 
+    
+    if(verbose){print(glue::glue('error at iteration {m}: {round(err,3)}'))}
+    
+    # Choose alpha^m = 1/2 * log((1-err^m)/err^m)
+    #alpha[m] <- 0.5 * log((1 - err) / err)
+    
+    # Avoiding dividing by 0 as error decreases
+    # From 'Schapire, Singer (1999) Improved Boosting Algorithms Using Confidence-rated Predictions'
+    # section 4.2. Smoothing the predictions:
+    # "In our experiments, we have typically used eps on the order of 1/n where n is the number of training examples"
+    alpha[m] <- 0.5 * log((1 - err + eps) / (err + eps))
+    
+    # Update w^(m+1)_i = w^m_i / Z_m * exp[-alpha^m * y_i * G^m(x_i)],
+    # Z_m so that Sum_i w^(m+1)_i = 1 (Schapire 2012 formulation)
+    w <- w * exp(-alpha[m] * G[[m]] * Y_target)
+    w <- w / sum(w)
+    if(verbose){print(w)}
+    weights[[m+1]] <- w
+    
+    # Update w^(m+1)_i = w^m_i / Z_m * exp[alpha^m * 11(y_i<>G^m(x_i))]  (AdaBoost.M1 form ESL II)
+    # w <- w * exp(-alpha[m] * misclass)
+    
+  }
+  
+  # Output list of weights:alpha^m,  weak learners: G^m(.) for the predict function
+  return(list(alphas=alpha, classifiers=G, weak_learners=weak_learner, weights=weights))
+  
+}
+
+# Final prediction as the sign of weighted sum of weak classifiers
+# Last step of algorithm / pseudocode
+predict_original_adaboost <- function(fitted_adaboost, new_data, num_tree = -1){
+  
+  # Output G(x) = sign[Sum_m alpha^mG^m(x)]
+  M <- length(fitted_adaboost$alphas)
+  if(num_tree >=1 & num_tree < M){
+    M <- num_tree
+  } 
+  
+  G <- 0
+  for(m in 1:M){
+    G_m <- as.integer(as.character(predict(fitted_adaboost$weak_learners[[m]], new_data, type ="class")))
+    G <- G + fitted_adaboost$alpha[[m]] * G_m
+    
+  }
+  return(sign(G))
+}
+```
+
+We then illustrate AdaBoost on the Mixture data set. 
+We first convert the target $Y$ to be in $\{-1,1\}$ then fit AdaBoost with $3$ iterations:
+```{r}
+data_ada <- data_mixture_example %>% mutate(Y=as.factor(if_else(Y==0, -1, 1)))
+adaboost_M <- fit_original_adaboost(data_ada, 3)
+
+# Sanity checks (sum of weighted classifiers == predict_adaboost)
+# g1 <- adaboost_M$alphas[1] * adaboost_M$classifiers[[1]]
+# g2 <- adaboost_M$alphas[2] * adaboost_M$classifiers[[2]]
+# g3 <- adaboost_M$alphas[3] * adaboost_M$classifiers[[3]]
+# g <- g1+g2+g3
+# sign(g)
+# sign(g)==predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+```
+
+
+We represent weak learners (here decision tree stumps) boundary decisions, as well as re-weighted data after each step:
+
+- Step 1
+
+```{r}
+# install.packages("remotes")
+# remotes::install_github("grantmcdermott/parttree")
+library(parttree)
+
+# Handle plot orientation issue 
+# https://grantmcdermott.com/parttree/articles/parttree-intro.html#plot-orientation
+step <- 1
+variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
+
+(ggplot(data_ada, aes(x=x1, y=x2)) +
+geom_point(aes(col = Y),size=1.5) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+ggtitle(glue::glue("Weak learner at step: {step}"))) 
+
+# reweighted data
+n <- nrow(data_ada)
+# breaks
+(ggplot(data_ada%>% mutate(weight=adaboost_M$weights[[step+1]]*n), aes(x=x1, y=x2)) +
+geom_point(aes(col = Y, size=weight)) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+# playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
+scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
+ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+```
+- Step 2
+```{r}
+step <- 2
+variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
+(ggplot(data_ada, aes(x=x1, y=x2)) +
+geom_point(aes(col = Y),size=1.5) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+ggtitle(glue::glue("Weak learner at step: {step}"))) 
+
+# reweighted data
+n <- nrow(data_ada)
+# breaks
+(ggplot(data_ada%>% mutate(weight=adaboost_M$weights[[step+1]]*n), aes(x=x1, y=x2)) +
+geom_point(aes(col = Y, size=weight)) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+# playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
+scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
+ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+```
+- Step 3
+
+```{r}
+step <- 3
+variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
+(ggplot(data_ada, aes(x=x1, y=x2)) +
+geom_point(aes(col = Y),size=1.5) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+ggtitle(glue::glue("Weak learner at step: {step}"))) 
+
+# reweighted data
+n <- nrow(data_ada)
+# breaks
+(ggplot(data_ada%>% mutate(weight=adaboost_M$weights[[step+1]]*n), aes(x=x1, y=x2)) +
+geom_point(aes(col = Y, size=weight)) +
+geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+# playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
+scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
+ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+```
+We run more iterations of AdaBoost
+```{r}
+# Prediction function used to classify areas on the grid and imply the decision boundary
+predict_oracle <- function(x1, x2){
+    obj <- 0
+    for(i in 1:10){
+       obj <- obj +
+           exp(-5/2*((x1-x1_means[i])**2+(x2-x2_means[i])**2)) -
+           exp(-5/2*((x1-x1_means[i+10])**2+(x2-x2_means[i+10])**2))
+    }
+    1 * (obj < 0)
+}
+
+predict_oracle_V <- Vectorize(predict_oracle)
+```
+
+
+```{r}
+tree_number <- 100
+adaboost_M <- fit_original_adaboost(data_ada, tree_number)
+
+variable_split <- rownames(adaboost_M$weak_learners[[tree_number ]]$splits)
+
+(stump <- ggplot(data_ada, aes(x=x1, y=x2)) +
+geom_point(aes(col = Y),size=1.5) +
+geom_parttree(data=adaboost_M$weak_learners[[tree_number ]], alpha=0.1, aes(fill=Y), col = NA, flipaxes = variable_split=="x2") +
+geom_parttree(data=adaboost_M$weak_learners[[tree_number ]],flipaxes = variable_split=="x2") +
+scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+theme(legend.key = element_rect(color="black"),
+      legend.key.spacing.y = unit(2, "pt")) +
+coord_cartesian(xlim = c(-2.85, 4.5),
+                ylim = c(-2.24, 3.09),
+                expand = FALSE)) 
+
+# https://stackoverflow.com/questions/7705345/how-can-i-extract-plot-axes-ranges-for-a-ggplot2-object
+# ggplot_build(stump)$layout$panel_scales_x[[1]]$range$range 
+# ggplot_build(stump)$layout$panel_scales_y[[1]]$range$range
+# [1] -2.520820  4.170746
+# [1] -1.999853  2.855805
+# ggplot_build(obj)$layout$panel_params[[1]]$x.range
+# [1] -2.855398  4.505325
+# ggplot_build(obj)$layout$panel_params[[1]]$y.range
+# [1] -2.242636  3.098588
+
+
+
+# reweighted data
+n <- nrow(data_ada)
+
+# See this hack (https://stackoverflow.com/a/63024297) to ensure weights of 1/n have ggplot default size
+# here we have a ceiling weight value around 10
+default_size <- ggplot2:::check_subclass("point", "Geom")$default_aes$size
+default_size_val <- 1
+max_size <- default_size/(sqrt(default_size_val/10))
+# max_size <- default_size/(sqrt(log1p(default_size_val)/log1p(10))) for log1p scale
+
+(ggplot(data_ada %>% mutate(weight = adaboost_M$weights[[tree_number + 1]]*n,
+                           misclass = adaboost_M$classifiers[[tree_number ]]!=data_ada$Y), aes(x=x1, y=x2)) +
+    # change observation size with weights at step tree_number (used for next fit)
+    geom_point(aes(col=Y, size=weight)) +
+    # circle misclassified (in red) by current fit
+    geom_point(aes(size=weight, stroke=if_else(misclass,1,0)), shape = 21, col="red3", fill=NA) +
+    # plot stump decision surface
+    geom_parttree(data=adaboost_M$weak_learners[[tree_number]], alpha=0.1, aes(fill=Y), col = NA, flipaxes = variable_split=="x2") +
+    geom_parttree(data = adaboost_M$weak_learners[[tree_number]], flipaxes = variable_split=="x2") +
+    
+    scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
+    # playing with size scale (max_size) we ensure a weight of 1/n has size 1.5 (ie ggplot default size)
+    scale_size(range = c(0, max_size), limits = c(0, 10), breaks = c(0, 10), guide='none') +
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")) +
+    guides( size="none", strike="none"))
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = predict_original_adaboost(adaboost_M, grid, num_tree = tree_number))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                   breaks = 1-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_ADA), alpha = 0.1, breaks = c(0,1-grid_precision,2), show.legend = TRUE) +
+     scale_fill_manual(name="Y",
+                       labels = c("-1", "1"),
+                       # guide="legend",
+                       values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y), show.legend = TRUE) +
+    scale_colour_manual(name="Y",
+                        values = c("dodgerblue", "orange"),
+                        # guide="legend",
+                        labels = c("-1", "1")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5),
+          # https://www.tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/
+          legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")
+          ) +
+    guides(stroke="none"))
+
+```
+
+```{r}
+M <- 3
+adaboost_M <- fit_original_adaboost(data_ada, M)
+
+pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+table(tibble(pred=pre, target=Y_target)) 
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = predict_original_adaboost(adaboost_M, grid))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = 0.01, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                   breaks = 0.99999, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_ADA), alpha = 0.1, breaks = c(0,0.99999,2), show.legend = FALSE) +
+     scale_fill_manual(values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y),
+                show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5)))
+
+ada_error_rate <- bind_cols(new_mixture,
+                          tibble(class = predict_original_adaboost(adaboost_M, new_mixture)) %>%
+                            mutate(class = 0.5 * (class + 1))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(ada_risk <- ada_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+```{r}
+M <- 50
+adaboost_M <- fit_original_adaboost(data_ada, M)
+
+pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+table(tibble(pred=pre, target=Y_target)) 
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = predict_original_adaboost(adaboost_M, grid))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = 0.01, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                   breaks = 0.99999, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_ADA), alpha = 0.1, breaks = c(0,0.99999,2), show.legend = FALSE) +
+     scale_fill_manual(values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y),
+                show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5)))
+
+ada_error_rate <- bind_cols(new_mixture,
+                          tibble(class = predict_original_adaboost(adaboost_M, new_mixture)) %>%
+                            mutate(class = 0.5 * (class + 1))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(ada_risk <- ada_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+```{r}
+M <- 200
+adaboost_M <- fit_original_adaboost(data_ada, M)
+
+pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+table(tibble(pred=pre, target=Y_target)) 
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = predict_original_adaboost(adaboost_M, grid))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = 0.01, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                   breaks = 0.99999, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_ADA), alpha = 0.1, breaks = c(0,0.99999,2), show.legend = FALSE) +
+     scale_fill_manual(values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y),
+                show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5)))
+
+ada_error_rate <- bind_cols(new_mixture,
+                          tibble(class = predict_original_adaboost(adaboost_M, new_mixture)) %>%
+                            mutate(class = 0.5 * (class + 1))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(ada_risk <- ada_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+## Derivation of AdaBoost: statistical view
+
+
+## Introducing LogitBoost
+
+
+
+## Gradient Boosting (Machines)
+
+breaktrough Showing importance of trees / using learning rate eta improves testing error
+
+plus Relative importance of input variables and PDP (Partial dependence plots)
+
+## Modern Implementations (Machines)
+
+
+### xgboost degenerate to rpart
+
+```{r}
+num_tree <- 6
+
+# Degenerate xgboost
+library(xgboost)
+xgb_deg <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
+        label = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)) %>% pull(Y),
+        max.depth = 1,
+        eta = 1,
+        nthread = 1,
+        nrounds = num_tree,
+        # xgboost does not have a minbucket parameter (ie minimum of obs per leaf)
+        # it allows to control the min weight in a leaf 
+        # minimum sum of instance weight (hessian) needed in a child
+        # to allow comparison we allow a 0 weight 
+        # which will be compared with a minbucket of 1 in the rpart implementation
+        min_child_weight = 0, 
+        objective = "binary:logistic",
+        lambda = 0,
+        # updater = "grow_colmaker",
+        tree_method = "exact")
+
+xgb_trees <- xgb.dump(xgb_deg, with_stats = TRUE)
+
+(xgb_clean_tree <- tibble(stump = xgb_trees[seq(2, 4*(num_tree-1) + 2, 4)],
+                         left = xgb_trees[seq(3, 4*(num_tree-1) + 3, 4)],
+                         right = xgb_trees[seq(4, 4*(num_tree-1) + 4, 4)]) %>%
+  tidyr::extract(stump, c("rule", "gain", "cover"), "0:\\[(.+)\\] yes\\=1.*gain=(.*),cover=(.*)") %>% 
+  tidyr::extract(left, c("left_pred", "left_cover"), "1:leaf=(.+),cover=(.*)") %>% 
+  tidyr::extract(right, c("right_pred", "right_cover"), "2:leaf=(.+),cover=(.*)") %>% 
+  mutate(left_pred = as.numeric(left_pred),
+         right_pred = as.numeric(right_pred)))
+xgb_clean_tree %>% select(rule, left_pred, right_pred)
+# # A tibble: 6 × 3
+#   rule            left_pred right_pred
+#   <chr>               <dbl>      <dbl>
+# 1 f1<0.144127041     -1.69       0.595
+# 2 f1<0.92796278      -0.721      0.508
+# 3 f0<2.00842214       0.284     -1.43 
+# 4 f0<0.991148889     -0.412      0.533
+# 5 f0<-0.967202127     1.51      -0.158
+# 6 f1<-0.344325602    -1.13       0.136
+
+# Friedman MART / gbm
+# https://stackoverflow.corpart foircem/questions/31296541/understanding-tree-structure-in-r-gbm-package
+# remotes::install_github("gbm-developers/gbm3", build_vignettes = TRUE, force = TRUE)
+library(gbm)
+gbm_deg <- gbm(Y~x1+x2,
+        data = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)),
+        n.trees = 6, 
+        distribution = "bernoulli",
+        interaction.depth = 1,
+        # n.minobsinnode comparable to rpart minbucket
+        n.minobsinnode = 1,
+        shrinkage = 1,
+        bag.fraction = 1)
+
+list_gbm_trees <- list()
+for(m in 1:num_tree){
+  tree <- gbm_deg$trees[[m]]
+  list_gbm_trees[[m]] <- tibble(var = if_else(tree[[1]][1]==0, "x1", "x2"),
+         split = tree[[2]][1],
+         left_pred = tree[[2]][2],
+         right_pred = tree[[2]][3])
+}
+gbm_trees <- bind_rows(list_gbm_trees) %>% 
+              mutate(rule = ifelse(var=="x1", glue::glue("f0<{round(split,9)}"), glue::glue("f1<{round(split,9)}")))
+
+gbm_trees %>% select(rule, left_pred, right_pred)
+# # A tibble: 6 × 3
+#   rule            left_pred right_pred
+#   <chr>               <dbl>      <dbl>
+# 1 f1<0.14412705     -1.69        0.595
+# 2 f1<0.927962775    -0.721       0.508
+# 3 f0<2.125986653     0.277      -1.44 
+# 4 f0<0.991148884    -0.404       0.524
+# 5 f0<-0.967202093    1.51       -0.158
+# 6 f0<3.07754902     -0.0118      1.24
+
+# pretty.gbm.tree(gbm_deg, i.tree=1)
+#   SplitVar SplitCodePred LeftNode RightNode MissingNode ErrorReduction Weight Prediction
+# 0        1     0.1441271        1         2           3       12.57796    200  0.0000000
+# 1       -1    -1.6923077       -1        -1          -1        0.00000     52 -1.6923077
+# 2       -1     0.5945946       -1        -1          -1        0.00000    148  0.5945946
+# 3       -1     0.0000000       -1        -1          -1        0.00000    200  0.0000000
+
+# Although the methods are not totally eauivalent (xgboost is Newton, gbm is Gradient based), the underlying stumps roughly agree
+
+# Implementing original Logitboost algorithm FHT2000 using rpart
+
+data_train <- data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1))
+
+fit_original_logitboost <- function(data_train, M, minbucket=1, verbose=FALSE){
+  # expect data with Y column in {0, 1}, with only additional predictors (as we will use formula Y ~ .)
+  # should test unique(data %>% pull(Y)) == c(0, 1) and classs(data %>% pull(Y)) is numeric
+  
+  # Extract Y
+  y <- data_train %>% pull(Y)
+  
+  ## Length of training data
+  n <-  nrow(data_train)
+  
+  weak_learner <- list()
+ 
+  # Initialization of additive function f and probabilities p
+  f <- numeric(n)             
+  p <- rep(1/2, n)
+  
+  # rpart parameters for Stump
+  cntrl <- rpart.control(maxdepth = 1,
+                         minsplit = 0,
+                         minbucket = minbucket,
+                         maxsurrogate = 0,
+                         maxcompete = 0,
+                         cp = -1)
+  
+  ## Boosting Iterations
+  for (m in 1:M){
+    
+    # Compute the working response/residuals and weights
+    
+    # Enforce a lower threshold on the weights: w = max(w, 2 × machine-zero).
+    w <- pmax(p * (1 - p), .Machine$double.eps * 2) # flooring with 2 times machine precision as suggested FHT00 p353
+    
+    # Compute residuals
+    z <- (y - p) / w               
+  
+    # Fit the function f^m(x) by a weighted least-squares regression of z to x_i 
+    # using weights w_i (weak learner is a stump)
+    
+    # Store tree for predict on new data
+    weak_learner[[m]] <- rpart(z ~ .,
+                               data = data_train %>% select(-Y), 
+                               # we replace Y by z as a target, keeping all X to predict (~.)
+                               weights = w,
+                               control = cntrl,
+                               method = "anova")
+    
+    if(verbose){
+      fit <- weak_learner[[m]]
+      
+      # Sanity checks
+      weighted_data <- data_train %>% mutate(y = y, weights = w, z = z, p = p) 
+      rpart.plot(fit, type=2, extra=101, digits=3)
+      
+      # Manually compute weighted anova/sum of squares/leaf values
+      # Parent Node
+      n_parent <- nrow(weighted_data)
+      sst <- weighted_data %>%
+          mutate(weighted_mean = sum(y * weights) / sum(weights),
+                 rss = weights * (y - weighted_mean)^2,
+                 value = weights * z) 
+      (SST <- sst %>% summarize(rss=sum(rss), val = sum(value) / sum(weights)))
+      (SST %>% pull(rss))
+    
+      # Left Node
+      left_weighted_data <- weighted_data %>%
+        filter(!!as.name(rownames(fit$splits)[1])<fit$splits[1, "index"])
+      
+      n_left <- nrow(left_weighted_data)
+      ssl <- left_weighted_data %>%
+          mutate(weighted_mean = sum(y * weights) / sum(weights),
+                 rss = weights * (y - weighted_mean)^2,
+                 value = weights * z) 
+      (SSL <- ssl %>% summarize(rss=sum(rss), val = sum(value) / sum(weights), wrong_val = mean(z)))
+      (SSL %>% pull(rss))
+          
+      # Right Node
+      right_weighted_data <- weighted_data %>%
+        filter(!!as.name(rownames(fit$splits)[1])>=fit$splits[1, "index"])
+      
+      n_right <- nrow(right_weighted_data)
+      ssr <- right_weighted_data %>%
+          mutate(weighted_mean = sum(y * weights) / sum(weights),
+                 rss = weights * (y - weighted_mean)^2,
+                 value = weights * z) 
+      (SSR <- ssr %>% summarize(rss=sum(rss), val = sum(value) / sum(weights)))
+      (SSR %>% pull(rss))
+      
+      # Compute gain
+      (SST %>% pull(rss) - n_left/n_parent * SSL %>% pull(rss) - n_right/n_parent * SSR %>% pull(rss))
+    }
+    
+    
+    # Predict f as weighted least square z~x, weight=w using CART
+    f_m <- predict(weak_learner[[m]])
+     
+    # Update Newton Boosted Stumps (ie Forward Stagewise Additive Model) and probabilities
+    f <- f + 1 / 2 * f_m
+    p <- 1 / ( 1 + exp(-2 * f))
+  }
+
+# Output list of weak learners (here stumps) for the predict function
+return(list(weak_learners=weak_learner, probs=p))
+  
+}
+
+logitboost_mixture <- fit_original_logitboost(data_train, num_tree, TRUE)
+
+predict_original_logitboost <- function(fitted_logitboost, new_data, num_tree = -1){
+  
+  # Allowing to use m < M number of rounds
+  M <- length(fitted_logitboost$weak_learners)
+  if(num_tree >=1 & num_tree < M){
+    M <- num_tree
+  } 
+  
+  f <- 0
+  
+  # Predicting on new data with Newton Boosted Stumps 
+  # (ie f function as Forward Stagewise Additive Model of Tress (depth 1)) and probabilities
+  for(m in 1:M){
+    f_m <- predict(fitted_logitboost$weak_learners[[m]], newdata = new_data)
+    f <- f + 1 / 2 * f_m
+  }
+  
+  # Get probability from Newton Boosted Stumps 
+  p <- 1 / ( 1 + exp(-2 * f))
+  
+  return(p)
+}
+
+# Sanity check: Compare predict(data_train) with original fit on data_train
+p_test <- predict_original_logitboost(logitboost_mixture, data_train, 6)
+(sum(logitboost_mixture$probs))
+(sum(p_test))
+sum(p_test)==sum(logitboost_mixture$probs)
+
+# Compare xgboost prediction (without penalties etc, and using stumps) 
+# with logitboost original fit on data_train
+pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
+(sum(logitboost_mixture$probs))
+(sum(pred_xgb))
+abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
+```
+
+LogitBoost decision boundaries
+
+
+```{r}
+tree_number <- 100
+
+logitboost_M <- fit_original_logitboost(data_train, tree_number, FALSE)
+
+tree_number_predict <- 20
+
+
+n <- nrow(data_train)
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_logitboost = predict_original_logitboost(logitboost_M, grid, num_tree = tree_number_predict))) %>% 
+                       mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+(logitboost_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_logitboost),
+                   breaks = 0.5-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_logitboost), alpha = 0.1, breaks = c(0,0.5-grid_precision,2), show.legend = TRUE) +
+     scale_fill_manual(name="Y",
+                       labels = c("0", "1"),
+                       values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y), show.legend = TRUE) +
+    scale_colour_manual(name="Y",
+                        values = c("dodgerblue", "orange"),
+                        labels = c("0", "1")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5),
+          # https://www.tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/
+          legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")
+          ) +
+    guides(stroke="none"))
+
+logitboost_error_rate <- bind_cols(new_mixture,
+                           tibble(class = predict_original_logitboost(logitboost_M, new_mixture, num_tree = tree_number)) %>%
+                             mutate(class = if_else(class > 0.5, 1, 0))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(logitboost_risk <- logitboost_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+
+```
+
+```{r}
+tree_number <- 100
+
+data_train_xgboost <- as.matrix(data_mixture_example %>% select(x1, x2))
+
+xgboost_M <- xgboost(data = as.matrix(data_train_xgboost),
+        label = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)) %>% pull(Y),
+        max.depth = 1,
+        eta = 1,
+        nthread = 1,
+        nrounds = tree_number,
+        min_child_weight = 0,
+        objective = "binary:logistic",
+        lambda = 0,
+        # updater = "grow_colmaker",
+        tree_method = "exact")
+
+n <- nrow(data_train_xgboost)
+
+tree_number_predict <- tree_number
+# tree_number_predict <- 20
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_logitboost = predict(xgboost_M, as.matrix(grid), iterationrange=c(1, tree_number_predict + 1)))) %>% 
+                       mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+(logitboost_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_logitboost),
+                   breaks = 0.5-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_logitboost), alpha = 0.1, breaks = c(0,0.5-grid_precision,1), show.legend = TRUE) +
+     scale_fill_manual(name="Y",
+                       labels = c("0", "1"),
+                       values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y), show.legend = TRUE) +
+    scale_colour_manual(name="Y",
+                        values = c("dodgerblue", "orange"),
+                        labels = c("0", "1")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5),
+          # https://www.tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/
+          legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")
+          ) +
+    guides(stroke="none"))
+```
+Train / Test curves for logitboost original
+
+We vary the number of tree fitted $M$ and show the empirical risks on training and testing sets together with Bayes risk:
+
+We estimate Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots).
+
+```{r}
+bayes_error_rate <- new_mixture %>%
+    mutate(Y = if_else(Y=="BLUE", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_test_risk <- bayes_error_rate %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+
+bayes_error_rate_train <- data_mixture_example %>%
+    mutate(Y = if_else(Y=="0", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_train_risk <- bayes_error_rate_train %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+```
+
+
+Gradient Boosting version of LogitBoost
+
+```{r}
+fit_l01_treeboost <- function(data_train, M, shrink = 1.0, verbose=FALSE){
+  # fits friedman2001 version of LogitBoost (so called LK_TreeBoost or MART, Algorithm 5)
+  # expect data with Y column in {-1, 1}, with only additional predictors (as we will use formula Y ~ .)
+  # can rewrite it for Y in {0, 1} cf p387 ESLII
+  # should test unique(data %>% pull(Y)) == c(0, 1) and classs(data %>% pull(Y)) is numeric
+  
+  # Extract Y ({0, 1})
+  y <- data_train %>% pull(Y)
+  
+  # Length of training data
+  n <-  nrow(data_train)
+  
+  weak_learner <- list()
+  
+  # Initialization of additive function f and probability p
+  f <- numeric(n)             
+  p <- rep(1/2, n)
+  
+  # rpart parameters for Stumps
+  cntrl <- rpart.control(maxdepth = 1,
+                         minsplit = 0,
+                         minbucket = 1,
+                         maxsurrogate = 0,
+                         maxcompete = 0,
+                         cp = -1)
+  
+  # Boosting Iterations
+  for (m in 1:M){
+   
+    # Compute residual
+    z <- y - p
+    
+    # Friedman gbm2001 version y in {-1, 1}
+    # z <- 2 * y / (1 + exp(2 * y * f))               
+  
+    # Fit the function f^m(x) by a weighted least-squares regression of z to x_i 
+    # using weights w_i (weak learner is a stump)
+    
+    
+    weak_learner_region <- rpart(z ~ .,
+                               data = data_train %>% select(-Y), 
+                               # we replace Y by z as a target, keeping all X to predict (~.)
+                               control = cntrl,
+                               method = "anova")
+    
+    # Compute the leaf weights optimizing the line search once regions are known 
+    # (they match weights computed for LogitBoost)
+    # Enforce a lower threshold on the weights: w = max(w, 2 × machine-zero).
+    # w <- pmax(p * (1 - p), .Machine$double.eps * 2) # flooring with 2 times machine precision as suggested FHT00 p353
+    w <- pmax(abs(z) * (1 - abs(z)), .Machine$double.eps * 2) # using Friedman equivalent expression for leaf weigths 
+    
+    
+    # Modifying leaf weights within the rpart object (tree regions/splits are left unchanged)
+    leaf_weights <- tibble(y=y, z=z, w=w) %>% # gathering observations z and w used to compute final weight
+      mutate(leaf = weak_learner_region$where) %>% # adding regression tree leaf/region for each observation
+      group_by(leaf) %>%
+      summarize(n = n(),
+                weight_node = sum(z)/sum(w),) # computing the sum_i(z_i) / sum_i(w_i) for each tree leaf
+      # Example for a stump
+      # A tibble: 2 × 3
+      #    leaf     n weight_node
+      #   <int> <int>       <dbl>
+      # 1     2    52      -1.69 
+      # 2     3   148       0.595
+    
+    if(verbose){ 
+      print(leaf_weights)
+      weak_learner_region_old <- weak_learner_region}
+    
+    # We modify the rpart object leaf nodes weigths/values with our own
+    # Leaf 2 (ie left)
+    weak_learner_region$frame[weak_learner_region$frame$n
+                                  == (leaf_weights[1,2] %>% pull(n)),
+                                  'yval'] <- leaf_weights[1,3]
+    # Leaf 3 (ie left)
+    weak_learner_region$frame[weak_learner_region$frame$n
+                                  == (leaf_weights[2,2] %>% pull(n)),
+                                  'yval'] <- leaf_weights[2,3]
+    
+    # Store modified tree for prediction on new data
+    weak_learner[[m]] <- weak_learner_region
+    
+    if(verbose){ 
+    # Sanity check: predict modified tree should differ
+    (bind_cols(tibble(modified = predict(weak_learner_region, data_train)),
+              tibble(old = predict(weak_learner_region_old, data_train))))
+       # A tibble: 200 × 2
+       #   modified    old
+       #      <dbl>  <dbl>
+       # 1    0.595  0.149
+       # 2   -1.69  -0.423
+       # 3    0.595  0.149
+    }
+
+    # Predict f as weighted least square z~x, weight=w using CART
+    f_m <- predict(weak_learner_region)
+     
+    # Updating Newton Boosted Stumps (ie Forward Stagewise Additive Model) and probabilities
+    f <- f + 1 / 2 * shrink * f_m
+    p <- 1 / ( 1 + exp(-2 * f))
+  }
+
+# Output list of weak learners (here stumps) for the predict function
+return(list(weak_learners=weak_learner, probs=p))
+  
+}
+
+# Compare gbm prediction (with learning rate = 1 etc, and using stumps) 
+# with gradient boosting flavor of logitboost original fit on data_train
+gbt_mixtures <- fit_l01_treeboost(data_train, num_tree, shrink = 1.0, TRUE)
+(sum(gbt_mixtures$probs))
+p_gbm <- predict(gbm_deg,type = "response")
+(sum(p_gbm))
+
+(abs(sum(gbt_mixtures$probs)-sum(p_gbm)) < 1e-6)
+
+
+predict_l01_treeboost <- function(fitted_l01_treeboost, new_data, num_tree = -1){
+  
+  # Allowing to use m < M number of rounds
+  M <- length(fitted_l01_treeboost$weak_learners)
+  if(num_tree >=1 & num_tree < M){
+    M <- num_tree
+  } 
+  
+  f <- 0
+  
+  # Predicting on new data with Newton Boosted Stumps 
+  # (ie f function as Forward Stagewise Additive Model of Tress (depth 1)) and probabilities
+  for(m in 1:M){
+    f_m <- predict(fitted_l01_treeboost$weak_learners[[m]], newdata = new_data)
+    f <- f + 1 / 2 * f_m
+  }
+  
+  # Get probability from Newton Boosted Stumps 
+  p <- 1 / ( 1 + exp(-2 * f))
+  
+  return(p)
+}
+
+# Sanity check: Compare predict(data_train) with original fit on data_train
+p_test <- predict_l01_treeboost(gbt_mixtures, data_train, 6)
+(sum(p_test))
+(sum(gbt_mixtures$probs))
+(sum(p_test) == sum(gbt_mixtures$probs))
+
+```
+
+MART decision boundary
+
+```{r}
+tree_number <- 100
+
+l01_treeboost_M <- fit_l01_treeboost(data_train, tree_number, shrink = 1.0, FALSE)
+
+tree_number_predict <- 20
+
+n <- nrow(data_train)
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_mart = predict_l01_treeboost(l01_treeboost_M, grid, num_tree = tree_number_predict))) %>% 
+                       mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+(logitboost_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_mart),
+                   breaks = 0.5-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_mart), alpha = 0.1, breaks = c(0,0.5-grid_precision,2), show.legend = TRUE) +
+     scale_fill_manual(name="Y",
+                       labels = c("0", "1"),
+                       values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y), show.legend = TRUE) +
+    scale_colour_manual(name="Y",
+                        values = c("dodgerblue", "orange"),
+                        labels = c("0", "1")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5),
+          # https://www.tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/
+          legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")
+          ) +
+    guides(stroke="none"))
+
+mart_error_rate <- bind_cols(new_mixture,
+                           tibble(class = predict_l01_treeboost(l01_treeboost_M, new_mixture, num_tree = tree_number_predict)) %>%
+                             mutate(class = if_else(class > 0.5, 1, 0))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(mart_risk <- mart_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+```{r}
+tree_number_predict <- 50
+
+n <- nrow(data_train)
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_mart = predict_l01_treeboost(l01_treeboost_M, grid, num_tree = tree_number_predict))) %>% 
+                       mutate(predict_oracle = predict_oracle_V(x1, x2))
+
+(logitboost_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_mart),
+                   breaks = 0.5-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_mart), alpha = 0.1, breaks = c(0,0.5-grid_precision,2), show.legend = TRUE) +
+     scale_fill_manual(name="Y",
+                       labels = c("0", "1"),
+                       values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y), show.legend = TRUE) +
+    scale_colour_manual(name="Y",
+                        values = c("dodgerblue", "orange"),
+                        labels = c("0", "1")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    coord_cartesian(xlim = c(-2.85, 4.5),
+                    ylim = c(-2.24, 3.09),
+                    expand = FALSE) +
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5),
+          # https://www.tidyverse.org/blog/2024/02/ggplot2-3-5-0-legends/
+          legend.key = element_rect(color="black"),
+          legend.key.spacing.y = unit(2, "pt")
+          ) +
+    guides(stroke="none"))
+
+mart_error_rate <- bind_cols(new_mixture,
+                           tibble(class = predict_l01_treeboost(l01_treeboost_M, new_mixture, num_tree = tree_number_predict)) %>%
+                             mutate(class = if_else(class > 0.5, 1, 0))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(mart_risk <- mart_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+
+Comparing Adaboost, Logitboost, Mart (Gradient Boosting version of Logitboost):
+
+```{r}
+tree_number <- 400
+
+M = c(seq(1, as.integer(tree_number/4), 2),
+      seq(as.integer(tree_number/4), as.integer(tree_number/2), 10),
+      seq(as.integer(tree_number/2), tree_number, 20))
+
+misclass_curve <- list()
+
+logitboost_M <- fit_original_logitboost(data_train, tree_number, FALSE)
+adaboost_M <- fit_original_adaboost(data_ada, tree_number, FALSE)
+mart_M <- fit_l01_treeboost(data_train, tree_number, shrink = 1, FALSE)
+
+for (m in M){
+    
+  logitboost_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_original_logitboost(logitboost_M, data_train, num_tree = m)) %>%
+                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  mart_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_l01_treeboost(mart_M, data_train, num_tree = m)) %>%
+                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  adaboost_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_original_adaboost(adaboost_M, data_ada, num_tree = m)) %>%
+                                mutate(class_train = if_else(class_train > 0, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  logitboost_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_original_logitboost(logitboost_M, new_mixture, num_tree = m)) %>%
+                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  adaboost_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_original_adaboost(adaboost_M, new_mixture, num_tree = m))%>%
+                               mutate(class_test = if_else(class_test > 0, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  mart_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_l01_treeboost(mart_M, new_mixture, num_tree = m)) %>%
+                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  (logitboost_risk_train <- logitboost_error_rate_train  %>%
+      summarise(l01_train = mean(l01_train)) %>% 
+      pull(l01_train))
+  
+  (logitboost_risk_test <- logitboost_error_rate_test  %>%
+    summarise(l01_test = mean(l01_test)) %>% 
+    pull(l01_test))
+
+  (adaboost_risk_train <- adaboost_error_rate_train  %>%
+    summarise(l01_train = mean(l01_train)) %>% 
+    pull(l01_train))
+  
+  (adaboost_risk_test <- adaboost_error_rate_test  %>%
+      summarise(l01_test = mean(l01_test)) %>% 
+      pull(l01_test))
+  
+  (mart_risk_train <- mart_error_rate_train  %>%
+    summarise(l01_train = mean(l01_train)) %>% 
+    pull(l01_train))
+  
+  (mart_risk_test <- mart_error_rate_test  %>%
+      summarise(l01_test = mean(l01_test)) %>% 
+      pull(l01_test))
+    
+  misclass_curve[[m]] <- tibble(`m - Number of Boosted Trees` = m,
+                                    `Boosting: Logitboost train` = logitboost_risk_train,
+                                    `Boosting: Logitboost test` = logitboost_risk_test,
+                                    `Boosting: MART train` = mart_risk_train,
+                                    `Boosting: MART test` = mart_risk_test,
+                                    `Boosting: Adaboost train` = adaboost_risk_train,
+                                    `Boosting: Adaboost test` = adaboost_risk_test)
+    
+}
+
+misclass_plot <- bind_rows(misclass_curve) %>% 
+    mutate(`Bayes test` = bayes_test_risk,
+           `Bayes train` = bayes_train_risk) %>% 
+    pivot_longer(-`m - Number of Boosted Trees`,
+                 names_to = "Model data",
+                 values_to = "Misclass Rate")
+
+
+(boosted_trees_error <- ggplot(misclass_plot) +
+    geom_line(aes(x = `m - Number of Boosted Trees`,
+                  y = `Misclass Rate`,
+                  col = as.factor(`Model data`),
+                  linetype = as.factor(`Model data`) )) +
+    scale_colour_manual(values = c("Bayes test" = "purple", "Bayes train" = "green",
+                                   "Boosting: Logitboost test" = "orange", "Boosting: Logitboost train" = "dodgerblue",
+                                   "Boosting: MART test" = "orange", "Boosting: MART train" = "dodgerblue",
+                                   "Boosting: Adaboost test" = "orange", "Boosting: Adaboost train" = "dodgerblue" )) +
+    scale_linetype_manual(values = c("Bayes test" = 1, "Bayes train" = 1,
+                                   "Boosting: Logitboost test" = 1, "Boosting: Logitboost train" = 1,
+                                    "Boosting: MART test" = 2, "Boosting: MART train" = 2,
+                                   "Boosting: Adaboost test" = 3, "Boosting: Adaboost train" = 3)) +
+    theme_bw() +
+    labs(col = NULL, linetype=NULL))
+```
+
+```{r}
+tree_number <- 400
+
+M = c(seq(1, as.integer(tree_number/4), 2),
+      seq(as.integer(tree_number/4), as.integer(tree_number/2), 10),
+      seq(as.integer(tree_number/2), tree_number, 20))
+
+misclass_curve <- list()
+
+logitboost_M <- fit_original_logitboost(data_train, tree_number, FALSE)
+adaboost_M <- fit_original_adaboost(data_ada, tree_number, FALSE)
+mart_M <- fit_l01_treeboost(data_train, tree_number, shrink = 1, FALSE)
+
+for (m in M){
+    
+  logitboost_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_original_logitboost(logitboost_M, data_train, num_tree = m)) %>%
+                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  mart_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_l01_treeboost(mart_M, data_train, num_tree = m)) %>%
+                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  adaboost_error_rate_train <- bind_cols(data_train,
+                             tibble(class_train = predict_original_adaboost(adaboost_M, data_ada, num_tree = m)) %>%
+                                mutate(class_train = if_else(class_train > 0, 1, 0))) %>%
+                              mutate(l01_train = if_else(Y==class_train, 0, 1))
+  
+  logitboost_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_original_logitboost(logitboost_M, new_mixture, num_tree = m)) %>%
+                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  adaboost_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_original_adaboost(adaboost_M, new_mixture, num_tree = m))%>%
+                               mutate(class_test = if_else(class_test > 0, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  mart_error_rate_test <- bind_cols(new_mixture,
+                             tibble(class_test = predict_l01_treeboost(mart_M, new_mixture, num_tree = m)) %>%
+                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
+                              mutate(Y = if_else(Y == "BLUE", 0, 1),
+                                     l01_test = if_else(Y==class_test, 0, 1))
+  
+  (logitboost_risk_train <- logitboost_error_rate_train  %>%
+      summarise(l01_train = mean(l01_train)) %>% 
+      pull(l01_train))
+  
+  (logitboost_risk_test <- logitboost_error_rate_test  %>%
+    summarise(l01_test = mean(l01_test)) %>% 
+    pull(l01_test))
+
+  (adaboost_risk_train <- adaboost_error_rate_train  %>%
+    summarise(l01_train = mean(l01_train)) %>% 
+    pull(l01_train))
+  
+  (adaboost_risk_test <- adaboost_error_rate_test  %>%
+      summarise(l01_test = mean(l01_test)) %>% 
+      pull(l01_test))
+  
+  (mart_risk_train <- mart_error_rate_train  %>%
+    summarise(l01_train = mean(l01_train)) %>% 
+    pull(l01_train))
+  
+  (mart_risk_test <- mart_error_rate_test  %>%
+      summarise(l01_test = mean(l01_test)) %>% 
+      pull(l01_test))
+    
+  misclass_curve[[m]] <- tibble(`m - Number of Boosted Trees` = m,
+                                    `Boosting: Logitboost train` = logitboost_risk_train,
+                                    `Boosting: Logitboost test` = logitboost_risk_test,
+                                    `Boosting: MART train` = mart_risk_train,
+                                    `Boosting: MART test` = mart_risk_test,
+                                    `Boosting: Adaboost train` = adaboost_risk_train,
+                                    `Boosting: Adaboost test` = adaboost_risk_test)
+    
+}
+
+misclass_plot <- bind_rows(misclass_curve) %>% 
+    mutate(`Bayes test` = bayes_test_risk,
+           `Bayes train` = bayes_train_risk) %>% 
+    pivot_longer(-`m - Number of Boosted Trees`,
+                 names_to = "Model data",
+                 values_to = "Prediction Error")
+
+
+ggplot(misclass_plot) +
+geom_line(aes(x = `m - Number of Boosted Trees`,
+              y = `Prediction Error`,
+              col = as.factor(`Model data`),
+              linetype = as.factor(`Model data`) )) +
+scale_colour_manual(values = c("Bayes test" = "purple", "Bayes train" = "green",
+                               "Boosting: Logitboost test" = "orange", "Boosting: Logitboost train" = "dodgerblue",
+                               "Boosting: MART test" = "orange", "Boosting: MART train" = "dodgerblue",
+                               "Boosting: Adaboost test" = "orange", "Boosting: Adaboost train" = "dodgerblue" )) +
+scale_linetype_manual(values = c("Bayes test" = 1, "Bayes train" = 1,
+                               "Boosting: Logitboost test" = 1, "Boosting: Logitboost train" = 1,
+                                "Boosting: MART test" = 2, "Boosting: MART train" = 2,
+                               "Boosting: Adaboost test" = 3, "Boosting: Adaboost train" = 3)) +
+theme_bw() +
+labs(col = NULL, linetype=NULL)
+```
+
+## Ping Li Robust Logitboost formula
+
+
+Defining specialized xgboost/robust logitboost impurity (using Gradient, Hessian, $\lambda$, $\gamma$):
+```{r}
+#| code-fold: show
+xgboost_gain <- function(tbl, y, verbose = FALSE){
+  # assumes tbl contains a probability (prob) column and response (r in {0,1}) column
+  # allowing to compute - grad = r - prob and hessian = prob * (1 - prob)
+  # expects lambda parameter (l2 regularization)
+  if(nrow(tbl) == 0) return(0)
+  gain <- tbl %>%
+    summarize(gain = - sum(grad) ^ 2 / (sum(hessian) + mean(lambda))) %>% 
+    pull(gain)
+  gain
+}
+```
+
+```{r}
+#| code-fold: show
+gain_sum_square <- function(tbl_node, y_name, x_name, split_value, min_leaf = 5){
+    
+    # Whenever any of left/right child node contains less than min_leaf observations we return a default value for impurity
+    # excluding de facto the split to be taken into account
+    ret_default <- list("impurity_left"=666,
+                "impurity_right"=666,
+                "impurity_total"=666)
+    
+    tbl_left <- tbl_node %>% filter(!!x_name < !!split_value)
+    n_left <- nrow(tbl_left)
+    if (n_left < min_leaf){return(ret_default)} 
+    impurity_left <- xgboost_gain(tbl_left, y_name)
+    
+    tbl_right <- tbl_node %>% filter(!!x_name >=!!split_value)
+    n_right <- nrow(tbl_right)
+    if (n_right < min_leaf){return(ret_default)}
+    impurity_right <- xgboost_gain(tbl_right, y_name)
+    
+    return(list("impurity_left" = impurity_left,
+                "impurity_right" = impurity_right,
+                "impurity_total" = impurity_left + impurity_right))
+}
+```
+
+
+```{r}
+#| code-fold: show
+# similar to max_impurity_decrease for decision tree
+max_gain <- function(tbl_node, y_name, x_names, min_leaf = 5, midpoint = FALSE){
+    imp_node = xgboost_gain(tbl_node, y_name)
+    list_all_x <- list()
+    tbl_res <- tibble(feature_split = "zzz", split_rule = -666, imp_left = 666, imp_right = 666, imp_total = 666)
+    for (x_name in x_names){
+        list_x <- list()
+       # print(x_name)
+        splits <- unique(tbl_node %>% pull(x_name))
+        # modify the algorithm to split on 'midpoint' value for continuous variable (some decision trees do (CART) other don't (C4.5))
+        if(midpoint){
+            splits <- sort(splits)
+            splits <- splits[-length(splits)] + diff(splits)/2
+        }
+       
+        for (split in splits){
+            # print(split)
+            imp_dec <- gain_sum_square(tbl_node, y_name, x_name, split, min_leaf)
+            # list_x[[j]] <- c(split, imp_dec)
+            tbl_res <-  bind_rows(tbl_res,
+                                  tibble(feature_split = as.character(x_name),
+                                         split_rule = split,
+                                         imp_node = imp_node,
+                                         imp_left = imp_dec[["impurity_left"]],
+                                         imp_right = imp_dec[["impurity_right"]],
+                                         imp_total = imp_dec[["impurity_total"]]))
+        }   
+
+    }
+    return(tbl_res)
+}
+```
+
+```{r}
+# add pro/hessian, parameters columns for xgboost method
+tbl_node <- data_mixture_example %>%
+  mutate(r = as.integer(as.character(Y)),
+         prob = 0.5,
+         grad = -(r - prob),
+         hessian = prob * (1 - prob),
+         lambda = 0.0,
+         gamma = 0.0)
+
+y_name <- as.name("Y")
+x_name = as.name("x2")
+split_value = 0.1441271
+gain_sum_square(tbl_node, y_name, x_name, split_value, min_leaf = 5)
+
+x_names = c(as.name("x1"), as.name("x2"))
+
+test <- max_gain(tbl_node, y_name, x_names, min_leaf = 1, midpoint = TRUE)
+(test <- test %>%
+    filter(feature_split!="zzz", imp_total != 666) %>% 
+    arrange(imp_total))
+```
+
+
+
+
+
+We plot for variables $x_1$ and $x_2$ the xgboost gain for each possible split of data:
+
+```{r}
+ggplot(test , aes(x=split_rule, y =imp_total, col = feature_split)) + geom_point()
+```
+```{r}
+#| code-fold: show
+tbl_node <- data_mixture_example %>%
+  mutate(r = as.integer(as.character(Y)),
+         prob = 0.5,
+         grad = -(r - prob),
+         hessian = prob * (1 - prob),
+         lambda = 0.0,
+         gamma = 0.0)
+
+y_name <- as.name("Y")
+x_names = c(as.name("x1"), as.name("x2"))
+
+node <- list("data" = tbl_node,
+             "left" = list(),
+             "right" = list(),
+             "impurity" = 0.5,
+             "target" = y_name,
+             "features" = x_names,
+             "split" = 666,
+             "feature_split" = "",
+             "is_leaf" = FALSE,
+             "value" = 666)
+```
+
+We define a `break_at_boost` function implementing the best split for a given node and returning the splitting rule (variable to split, split value):
+
+```{r}
+#| code-fold: show
+break_at_boost <- function(node, min_leaf, midpoint, is_root){
+    tbl_node <- node[["data"]]
+    y_name <- node[["target"]]
+    x_names <- node[["features"]]
+    
+    break_node <- max_gain(tbl_node, y_name, x_names, min_leaf, midpoint)
+    break_node <- break_node %>% 
+        filter(feature_split!="zzz",
+               imp_total != 666) %>%  #,
+               #imp_node != 0) %>% # don't split when node is pure (ie 0 impurity)
+        dplyr::slice(which.min(imp_total))
+    return(break_node)
+}
+```
+
+The function below `conditional_split_boost` looks at a provided children node (left or right) to check if it is terminal given a stopping rule (either the max tree depth is attained, or there is a single element in the node).
+If not the tree continues to grow (ie the recursion continues and the recursive function `grow_decision_tree_boost` defined below is called). 
+It also computes metrics (number of observations per class, probabilities of classes 0-1, vote ...) to fill the given node with useful information:
+
+```{r}
+#| code-fold: show
+conditional_split_boost <- function(node, depth, max_depth, min_leaf, midpoint)
+{
+  
+  if(nrow(node[["data"]]) == 1 | depth == max_depth) {
+      node[["is_leaf"]] <- TRUE
+      # Set final value for node
+      val <- node[["data"]] %>% 
+                summarize(val =  - sum(grad) / (sum(hessian) + mean(lambda))) %>% 
+                pull(val)
+      node[["value"]] <- val
+      
+      return(node)
+      }
+  else grow_decision_tree_boost(node, depth + 1, max_depth, min_leaf, midpoint)
+}    
+```
+
+Finally the function `grow_decision_tree_boost` implements the recursion, breaking the current node into left and right children nodes and conditionally to the stopping rule splitting each child node:
+
+```{r}
+#| code-fold: show
+grow_decision_tree_boost <- function(node, depth = 1, max_depth = 2, min_leaf = 5, midpoint = TRUE)
+{
+  # before split
+  tbl_node <- node[["data"]]  
+  x_names  <- node[["features"]]  
+  y_name <- node[["target"]]  
+
+  # split using break node function
+  break_node <- break_at_boost(node, min_leaf, midpoint)
+  if(nrow(break_node) == 0) {
+      node[["is_leaf"]] <- TRUE
+      return(node)}
+  
+  x_name_node <- as.name(break_node %>% pull(feature_split))
+  split_value_node <- break_node %>% pull(split_rule)
+
+  node[["impurity"]] <- break_node %>% pull(imp_node)
+  node[["split"]] <- split_value_node
+  node[["feature_split"]] <- x_name_node
+  
+  
+  # Recursion, calling conditional split for left/right children
+  tbl_left <- tbl_node %>% filter(!!x_name_node < !!split_value_node)  
+
+  node_left <-  list("data" = tbl_left,
+                     "left" = list(),
+                     "right" = list(),
+                     "impurity" = break_node %>% pull(imp_left),
+                     "target" = y_name,
+                     "features" = x_names,
+                     "split" = 666,
+                     "feature_split" = "",
+                     "is_leaf" = FALSE)
+  
+  node_left <- conditional_split_boost(node_left, depth, max_depth, min_leaf, midpoint)
+  
+  tbl_right <- tbl_node %>% filter(!!x_name_node >= !!split_value_node)  
+
+  node_right <-  list("data" = tbl_right,
+                     "left" = list(),
+                     "right" = list(),
+                     "impurity" = break_node %>% pull(imp_right),
+                     "target" = y_name,
+                     "features" = x_names,
+                     "split" = 666,
+                     "feature_split" = "",
+                     "is_leaf" = FALSE)
+  
+  node_right <- conditional_split_boost(node_right, depth, max_depth, min_leaf, midpoint)
+  
+  node[["left"]] <- node_left
+  node[["right"]] <- node_right
+  return(node)
+
+}
+```
+
+```{r}
+#| code-fold: show
+# Recursive function to print tree
+print_regression_tree <- function(grown_tree, shift ='', precision = 3){
+    # Node
+    if (grown_tree$is_leaf == TRUE) {
+        impurity <- round(grown_tree$impurity,3)
+        n <- nrow(grown_tree$data)
+        val <- round(grown_tree$value,3)
+        cat(paste0(shift, '  '), glue::glue('observations: {n}, gain: {impurity}, value: {val}'))
+    } else{
+        # Else recurse
+        # First print the splitting variable and rule
+        if(shift == ''){
+            cat('Root' , '\n')
+        }
+        split <- grown_tree$split
+        feature_split <- grown_tree$feature_split
+        
+        #print(glue::glue('Node {feature_split} < {split} Y/N?'))
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} < {round(split, precision)}'), '\n')
+        cat(print_regression_tree(grown_tree$left, paste0(shift, '  ')),'\n')
+        
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} >= {round(split, precision)}'), '\n')
+        cat(print_regression_tree(grown_tree$right, paste0(shift, '  ')), '\n')
+    }
+}
+```
+
+We test the recursive algorithm on the mixture data set (using stumps, ie `max_depth` = 1): 
+```{r}
+mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 1, min_leaf = 1, midpoint = TRUE)
+```
+
+```{r}
+print_regression_tree(mixture_node_boost)
+```
+Our toy implementation of Robust Logitboost agrees with xgboost:
+
+```{r}
+xgb_depth2 <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
+        label = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)) %>% pull(Y),
+        max.depth = 1,
+        eta = 1,
+        nthread = 1,
+        nrounds = 1,
+        min_child_weight = 0, 
+        objective = "binary:logistic",
+        lambda = 0,
+        tree_method = "exact")
+
+xgb_trees_depth2 <- xgb.dump(xgb_depth2, with_stats = TRUE)
+
+xgb_trees_depth2[1:4]
+```
+
+Checking for depth 2 weak learners:
+```{r}
+mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 2, min_leaf = 1, midpoint = TRUE)
+print_regression_tree(mixture_node_boost)
+
+xgb_depth2 <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
+        label = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)) %>% pull(Y),
+        max.depth = 2,
+        eta = 1,
+        nthread = 1,
+        nrounds = 1,
+        min_child_weight = 0, 
+        objective = "binary:logistic",
+        lambda = 0,
+        tree_method = "exact")
+
+xgb_trees_depth2 <- xgb.dump(xgb_depth2, with_stats = TRUE)
+tibble(xgb_trees_depth2[1:8])
+```
+```{r}
+#| code-fold: show
+# Recursive function to print tree
+build_regression_tree_rule <- function(grown_tree, list_rules){
+    # Node
+    if (grown_tree$is_leaf == TRUE) {
+      
+        list_rules.append()
+        impurity <- round(grown_tree$impurity,3)
+        n <- nrow(grown_tree$data)
+        val <- round(grown_tree$value,3)
+        cat(paste0(shift, '  '), glue::glue('observations: {n}, gain: {impurity}, value: {val}'))
+    } else{
+        # Else recurse
+        # First print the splitting variable and rule
+        if(shift == ''){
+            cat('Root' , '\n')
+        }
+        split <- grown_tree$split
+        feature_split <- grown_tree$feature_split
+        
+        #print(glue::glue('Node {feature_split} < {split} Y/N?'))
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} < {round(split, precision)}'), '\n')
+        cat(print_regression_tree(grown_tree$left, paste0(shift, '  ')),'\n')
+        
+        cat(paste0(shift, '  '), glue::glue('|> {feature_split} >= {round(split, precision)}'), '\n')
+        cat(print_regression_tree(grown_tree$right, paste0(shift, '  ')), '\n')
+    }
+}
+```
+
+```{r}
+#| code-fold: show
+# Recursive function to find root-to-leaf rules and return as a list of strings
+get_decision_tree_rule <- function(node, curr_rule = list()){
+  # current node is NULL return an empty list
+  if (is.null(node)) {
+    return(list())
+  }
+  
+  # current node is a leaf return the total rule
+  if (node$is_leaf) {
+    condition <- glue::glue_collapse(curr_rule, sep = " & ")
+    value <- node$value
+    rule_str <- glue::glue("{condition} ~ {value}")
+    return(list(rule_str))
+  }
+  
+  # add current node rule to the path and collect rules from both left and right children
+  feature_split <- node$feature_split
+  split <- node$split
+  left_rules <- get_decision_tree_rule(node$left,
+                             c(curr_rule, glue::glue("{feature_split} < {split}")))  
+  right_rules <- get_decision_tree_rule(node$right,
+                              c(curr_rule, glue::glue("{feature_split} >= {split}"))) 
+  
+  return(c(left_rules, right_rules))
+}
+
+(conds <- get_decision_tree_rule(mixture_node_boost))
+```
+
+```{r}
+predict_decision_tree_boost <- function(node, curr_rule = list()){
+
+# inspiring from https://forum.posit.co/t/case-when-pattern-dynamically-generated/96790
+caseArgs <- tibble(cond = conds) %>% unnest(cond) %>% mutate(cond=rlang::parse_exprs(cond))
+
+data_train %>%
+    mutate(
+      predict = case_when(!!!caseArgs$cond)
+    )
+}
+```
+
+Implementing Ping Li's robust logitboost (ie almost xgboost)
+```{R}
+fit_robust_logitboost <- function(data_train, M, min_leaf=1, max_depth = 1, lambda=0, verbose=FALSE){
+  # expect data with Y column in {0, 1}, with only additional predictors (as we will use formula Y ~ .)
+  # should test unique(data %>% pull(Y)) == c(0, 1) and classs(data %>% pull(Y)) is numeric
+  
+  # Extract Y
+  y <- data_train %>% pull(Y)
+  
+  ## Length of training data
+  n <-  nrow(data_train)
+  
+  weak_learner <- list()
+ 
+  ## Initialization of additive function f and probability p
+  f <- numeric(n)             
+  prob <- rep(1/2, n)
+  
+  ## Boosting Iterations
+  for (m in 1:M){
+    
+    # Initializing the tree to be fitted
+    tbl_node <- data_mixture_example %>%
+      mutate(r = as.integer(as.character(Y)),
+             prob = prob,
+             grad = -(r - prob),
+             # Enforce a lower threshold on the Hessian: w = max(w, 2 × machine-zero)
+             # flooring with 2 times machine precision as suggested FHT00 p353 for Logitboost
+             hessian = pmax(prob * (1 - prob), .Machine$double.eps * 2), 
+             lambda = 0.0,
+             gamma = 0.0)
+      
+    y_name <- as.name("Y")
+    x_names = c(as.name("x1"), as.name("x2"))
+      
+    node <- list("data" = tbl_node,
+                 "left" = list(),
+                 "right" = list(),
+                 "impurity" = 0.5,
+                 "target" = y_name,
+                 "features" = x_names,
+                 "split" = 666,
+                 "feature_split" = "",
+                 "is_leaf" = FALSE,
+                 "value" = 666)
+    
+    ## Fit the function f^m(x) by a specialized tree using Ping Li's / xgboost like gain formula
+    
+    #  Fitting the tree
+    mixture_node_boost <- grow_decision_tree_boost(node, max_depth = max_depth, min_leaf = min_leaf, midpoint = TRUE)
+    
+    # Extracting the rule to predict on new data
+    conds <- get_decision_tree_rule(mixture_node_boost)
+    
+    # Store rule for predict on new data
+    weak_learner[[m]] <- conds
+    
+    # Predict f_m using specialized tree a la Ping Li
+    caseArgs <- tibble(cond = conds) %>% unnest(cond) %>% mutate(cond=rlang::parse_exprs(cond))
+    f_m <- data_train %>%
+      mutate(predict = case_when(!!!caseArgs$cond)) %>% pull(predict)
+     
+    # Updating Newton Boosted Stumps (ie Forward Stagewise Additive Model) and probabilities
+    f <- f + 1 / 2 * f_m
+    prob <- 1 / ( 1 + exp(-2 * f))
+  }
+
+# Output list of weak learners (here stumps) for the predict function
+return(list(weak_learners=weak_learner, probs=prob))
+  
+}
+
+robust_logitboost_mixture <- fit_robust_logitboost(data_train, 6, min_leaf=1, max_depth = 1, lambda=0, verbose=FALSE)
+check_vs <- fit_original_logitboost(data_train, 6, FALSE)
+
+predict_robust_logitboost <- function(fitted_logitboost, new_data, num_tree = -1){
+  
+  M <- length(fitted_logitboost$weak_learners)
+  if(num_tree >=1 & num_tree < M){
+    M <- num_tree
+  } 
+  
+  f <- 0
+  
+  ## Predicting on new data with Newton Boosted Stumps 
+  ## (ie f function as Forward Stagewise Additive Model of Tress (depth 1)) and probabilities
+  for(m in 1:M){
+    
+    # Extract rule for prediction
+    conds <- fitted_logitboost$weak_learners[[m]]
+    
+    # Predict f_m using specialized tree a la Ping Li
+    caseArgs <- tibble(cond = conds) %>% unnest(cond) %>% mutate(cond=rlang::parse_exprs(cond))
+    f_m <- data_train %>%
+      mutate(predict = case_when(!!!caseArgs$cond)) %>% pull(predict)
+
+    # Updating Newton Boosted Stumps (ie Forward Stagewise Additive Model) and probabilities
+    f <- f + 1 / 2 * f_m
+  }
+  
+  ## Get probability from Newton Boosted Stumps 
+  p <- 1 / ( 1 + exp(-2 * f))
+  
+  return(p)
+}
+
+# Sanity check: Compare predict(data_train) with original fit on data_train
+p_test <- predict_original_logitboost(logitboost_mixture, data_train, 6)
+p_test2 <- predict_robust_logitboost(robust_logitboost_mixture, data_train, 6)
+(sum(p_test))
+(sum(p_test2))
+sum(p_test2)==sum(robust_logitboost_mixture$probs)
+
+# Compare xgboost prediction (without penalties etc, and using stumps) 
+# with logitboost original fit on data_train
+pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
+(sum(robust_logitboost_mixture$probs))
+(sum(pred_xgb))
+abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
+```
+
+```{r}
+
+```
+
+## Appendix
+
+### Cp plots
+
+```{r}
+printcp(mixture_example_CART)
+```
+
+```{r}
+l <- lapply(c(0.1,0.01,0), function(x){
+  X_rpart = rpart(
+    Y ~ .,
+    method = "class",
+    data = data_mixture_example,
+    control = rpart.control(cp = x, minbucket = 7, maxdepth = 4)
+  )
+})
+
+for (i in 1:length(l)) {
+  rpart.plot(l[[i]])
+}
+
+```
+
+### Checking our implementation vs R packages and scikit-learn
+
+Check using package `ada`:
+```{r}
+library(ada)
+check_ada <- ada::ada(Y~., data = data_ada, iter=200, bag.frac=1, type="discrete", nu = 1,
+                      control=rpart.control(cp = -1 , maxdepth = 1 , minsplit = 0))
+
+pre <- predict(check_ada, data_ada)
+Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+table(tibble(pred=pre, target=Y_target)) 
+
+grid_precision <- .01
+
+grid <- expand.grid(x1 = seq(-2.85, 4.5, grid_precision), x2 = seq(-2.25, 3.1, grid_precision)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = as.integer(as.character(predict(check_ada, grid))))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = grid_precision, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                   breaks = 1-grid_precision, col = 'black') + 
+     geom_contour_filled(aes(x = x1, y = x2, z = predict_ADA), alpha = 0.1, breaks = c(0,0.99999,2), show.legend = FALSE) +
+     scale_fill_manual(values = c("dodgerblue", "orange")) +
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y),
+                show.legend = FALSE) +
+    scale_colour_manual(values = c("dodgerblue", "orange")) +
+    scale_x_continuous(expand = expansion(mult = 0)) +
+    scale_y_continuous(expand = expansion(mult = 0))+
+    theme(panel.border = element_rect(colour = "black", fill=NA, size=0.5)))
+
+ada_error_rate <- bind_cols(new_mixture,
+                          tibble(class = as.integer(as.character(predict(check_ada, new_mixture)))) %>%
+                            mutate(class = 0.5 * (class + 1))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(ada_risk <- ada_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+
+Check using package `JOUSBoost`:
+```{r}
+library(JOUSBoost)
+check_ada <- JOUSBoost::adaboost(as.matrix(data_ada %>% select(x1, x2)),
+                                 data_ada %>% mutate(Y=as.integer(as.character(Y))) %>% pull(Y),
+                                 tree_depth = 1,
+                                 n_rounds = 200)
+
+pre <- predict(check_ada, data_ada)
+Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+table(tibble(pred=pre, target=Y_target)) 
+
+grid <- expand.grid(x1 = seq(-2.6, 4.2, .05), x2 = seq(-2.0, 2.9, .05)) %>% as_tibble()
+
+grid <- bind_cols(grid, tibble(predict_ADA = as.integer(as.character(predict(check_ada, grid))))) %>% 
+                       mutate(predict_ADA = 0.5 * (predict_ADA + 1),
+                              predict_oracle = predict_oracle_V(x1, x2))
+
+(ada_decision_plot <- ggplot(grid) + 
+     geom_point(aes(x = x1, y = x2, col = as.factor(predict_ADA)),
+                shape = 20, size = .05, alpha = .5, show.legend = FALSE) +
+     geom_contour(aes(x = x1, y = x2, z = predict_oracle),
+                  breaks = 0.05, col = 'purple') + 
+     geom_contour(aes(x = x1, y = x2, z = predict_ADA),
+                  breaks = 0.05, col = 'darkgrey') + 
+     geom_point(data = data_ada %>% mutate(Y = as.factor(0.5* (as.integer(as.character(Y))+1))), aes(x = x1, y = x2, col = Y),
+                shape = "o", size = 4, stroke = 2, show.legend = FALSE) +
+     scale_colour_manual(values = c("dodgerblue", "orange")) +
+     theme_void())
+
+ada_error_rate <- bind_cols(new_mixture,
+                          tibble(class = as.integer(as.character(predict(check_ada, new_mixture)))) %>%
+                            mutate(class = 0.5 * (class + 1))) %>%
+                        mutate(Y = if_else(Y == "BLUE", 0, 1),
+                               l01 = if_else(Y==class, 0, 1))
+(ada_risk <- ada_error_rate  %>%
+    summarise(l01 = mean(l01)) %>% 
+    pull(l01))
+```
+
+
+Check using `Python` package `scikit-learn`:
+
+```{r}
+Y_sk = data_mixture_example %>% select(Y)
+X_sk = data_mixture_example %>% select(x1,x2)
+```
+
+```{python}
+X = r.X_sk.to_numpy()
+Y = r.Y_sk.values.ravel().astype(int)
+Y[0:5]
+```
+
+
+```{python}
+# adapted from sciki-learn examples
+# https://scikit-learn.org/stable/auto_examples/ensemble/plot_adaboost_twoclass.html#sphx-glr-auto-examples-ensemble-plot-adaboost-twoclass-py
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+from sklearn.ensemble import AdaBoostClassifier
+from sklearn.inspection import DecisionBoundaryDisplay
+from sklearn.tree import DecisionTreeClassifier
+
+# Create and fit an AdaBoosted decision tree
+M = 200
+bdt = AdaBoostClassifier(
+    DecisionTreeClassifier(max_depth=1), algorithm="SAMME", n_estimators=M
+)
+
+bdt.fit(X, Y)
+
+plot_colors = ["dodgerblue", "darkorange"]
+plot_step = 0.02
+class_names = ["BLUE", "ORANGE"]
+
+plt.figure(figsize=(10, 10))
+
+# Plot the decision boundaries
+ax = plt.subplot(111)
+disp = DecisionBoundaryDisplay.from_estimator(
+    bdt,
+    X,
+    cmap=plt.cm.Paired,
+    response_method="predict",
+    ax=ax,
+    xlabel="x1",
+    ylabel="x2",
+)
+x_min, x_max = disp.xx0.min(), disp.xx0.max()
+y_min, y_max = disp.xx1.min(), disp.xx1.max()
+plt.axis("tight")
+
+# Plot the training points
+for i, n, c in zip(range(2), class_names, plot_colors):
+    idx = np.where(Y == i)
+    plt.scatter(
+        X[idx, 0],
+        X[idx, 1],
+        c=c,
+        s=20,
+        edgecolor="k",
+        label=f"{n}",
+    )
+plt.xlim(x_min, x_max)
+plt.ylim(y_min, y_max)
+plt.legend(loc="upper right")
+plt.title(f"Decision Boundary ({M} estimators)")
+plt.show()
+```
+
+
+
+Problems (see Geron p249)
+Figure 6-7. Sensitivity to training set rotation
+Figure 6-8. A tree’s decision boundaries on the scaled and PCA-rotated iris dataset)
+
+<!--  in the original CART 5.2.2  --- -->
+
+<!-- In some data, the classes are naturally separated by hyperplanes not perpendicular to the coordinate axes. These problems are difficult for the unmodified tree structured procedure and result in large trees as the algorithm attempts to approximate the hyperplanes by multidimensional rectangular regions. To cope with such situations, the basic structure has been enhanced to allow a search for best splits over linear combinations of variables.--- -->
+
+<!--  4.6 The use of Gini impurity measure is justified --- -->
+
+<!--  https://stats.stackexchange.com/questions/4356/does-rpart-use-multivariate-splits-by-default --- -->
+
+# References
+
+::: {#refs}
+:::
