@@ -602,7 +602,7 @@ and taking the average value we verify that `rpart` splits on midpoint value:
 
 All of this nitpicking shows that each decision tree implementation is specific and when using a new one it is a good idea to check some details on simple cases. 
 
-As a matter of fact modern decision tree (boosting) algorithm optimize the way tree splitting is performed see for example [LightGBM](https://lightgbm.readthedocs.io/en/stable/Features.html#optimization-in-speed-and-memory-usage) using histograms/binning for numerical variables and [XGBoost](https://xgboost.readthedocs.io/en/stable/treemethod.html) using various methods from iterating over all values (`exact`) to histogram methods similar to LightGBM (`hist`). XGBoost developpers TODO [^3].
+As a matter of fact modern decision tree (boosting) algorithm optimize the way tree splitting is performed see for example [LightGBM](https://lightgbm.readthedocs.io/en/stable/Features.html#optimization-in-speed-and-memory-usage) using histograms/binning for numerical variables and [XGBoost](https://xgboost.readthedocs.io/en/stable/treemethod.html) using various methods from iterating over all values (`exact`) to histogram methods similar to LightGBM (`hist`). XGBoost developers even warn the package users that actual implementation of algorithm may differ from pure mathematical theory[^3].
 
 [^3]: In [XGBoost documentation](https://xgboost.readthedocs.io/en/stable/treemethod.html) we find this disclaimer: 'However, as xgboost is largely driven by community effort, the actual implementations have some differences than pure math description. Result might be slightly different than expectation, which we are currently trying to overcome.'
 
@@ -1121,6 +1121,10 @@ We start by introducing `AdaBoost` which was (one of[^2]) the first successful i
 The algorithm is described for example in Chapter 1 of @boosting2012 (Algorithm 1.1):
 
 ![](images/adaboost_algo.png){fig-align="center"}
+or in Chapter 10 of @hastie2009 (Algorithm 10.1):
+
+![](images/adaboost_algo_esl.png){fig-align="center"}
+
 A toy example is also introduced in the book, showing graphically the first three iterations of the algorithm on a simplified data set:
 
 ![](images/adaboost_toy_example.png){fig-align="center"}
@@ -1172,12 +1176,19 @@ fit_original_adaboost <- function(data, M, smoothing=FALSE, verbose=FALSE){
     # Compute error:
     # err^m = [Sum_n w^m_i * 11(y_i<>G^m(x_i)]
     G[[m]] <- as.integer(as.character(predict(weak_learner[[m]], type ="class")))
+    
     # store 11(y_i<>G^m(x_i)
     misclass <- (G[[m]]!=Y_target)
-    err <- sum(w * misclass) 
+    
+    # In Freund Schapire 2012: no rescaling of error but rescaling of weights
+    #err <- sum(w * misclass) 
+    
+    # Alt. in ESLII rescaling of error but no rescaling of weights in the end
+    err <- sum(w * misclass) / sum(w)
     
     if(verbose){print(glue::glue('error at iteration {m}: {round(err,3)}'))}
     
+    # (Schapire 2012 formulation)
     # Choose alpha^m = 1/2 * log((1-err^m)/err^m)
     #alpha[m] <- 0.5 * log((1 - err) / err)
     
@@ -1185,17 +1196,24 @@ fit_original_adaboost <- function(data, M, smoothing=FALSE, verbose=FALSE){
     # From 'Schapire, Singer (1999) Improved Boosting Algorithms Using Confidence-rated Predictions'
     # section 4.2. Smoothing the predictions:
     # "In our experiments, we have typically used eps on the order of 1/n where n is the number of training examples"
-    alpha[m] <- 0.5 * log((1 - err + eps) / (err + eps))
     
+    # (AdaBoost.M1 from ESL II) with eps trick from Schapire
+    alpha[m] <- log((1 - err + eps) / (err + eps))
+    
+    # (Schapire 2012 formulation)
     # Update w^(m+1)_i = w^m_i / Z_m * exp[-alpha^m * y_i * G^m(x_i)],
-    # Z_m so that Sum_i w^(m+1)_i = 1 (Schapire 2012 formulation)
-    w <- w * exp(-alpha[m] * G[[m]] * Y_target)
-    w <- w / sum(w)
+    # Z_m so that Sum_i w^(m+1)_i = 1 
+    # w <- w * exp(-alpha[m] * G[[m]] * Y_target)
+    # w <- w / sum(w)
+    
+    # (ESLII 2009 formulation)
+    # Update w^(m+1)_i = w^m_i* exp[-alpha^m * y_i * G^m(x_i)],
+    # Update w^(m+1)_i = w^m_i * exp[alpha^m * 11(y_i<>G^m(x_i))]  (AdaBoost.M1 from ESL II)
+    w <- w * exp(alpha[m] * misclass)*exp(-alpha[m]/2) # the last exp(-alpha/2) if found in AdaBoost derivation
+    
     if(verbose){print(w)}
     weights[[m+1]] <- w
     
-    # Update w^(m+1)_i = w^m_i / Z_m * exp[alpha^m * 11(y_i<>G^m(x_i))]  (AdaBoost.M1 form ESL II)
-    # w <- w * exp(-alpha[m] * misclass)
     
   }
   
@@ -1242,7 +1260,7 @@ adaboost_M <- fit_original_adaboost(data_ada, 3)
 
 We represent weak learners (here decision tree stumps) boundary decisions, as well as re-weighted data after each step:
 
-- Step 1
+- Step 1:
 
 ```{r}
 # install.packages("remotes")
@@ -1258,7 +1276,7 @@ variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
 geom_point(aes(col = Y),size=1.5) +
 geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
-ggtitle(glue::glue("Weak learner at step: {step}"))) 
+ggtitle(glue::glue("Weak learner at step {step}"))) 
 
 # reweighted data
 n <- nrow(data_ada)
@@ -1269,9 +1287,9 @@ geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), fli
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
 # playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
 scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
-ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+ggtitle(glue::glue("Reweighted data after step {step}"))) 
 ```
-- Step 2
+- Step 2:
 ```{r}
 step <- 2
 variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
@@ -1279,7 +1297,7 @@ variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
 geom_point(aes(col = Y),size=1.5) +
 geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
-ggtitle(glue::glue("Weak learner at step: {step}"))) 
+ggtitle(glue::glue("Weak learner at step {step}"))) 
 
 # reweighted data
 n <- nrow(data_ada)
@@ -1290,9 +1308,9 @@ geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), fli
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
 # playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
 scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
-ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+ggtitle(glue::glue("Reweighted data after step {step}"))) 
 ```
-- Step 3
+- Step 3:
 
 ```{r}
 step <- 3
@@ -1301,7 +1319,7 @@ variable_split <- rownames(adaboost_M$weak_learners[[step]]$splits)
 geom_point(aes(col = Y),size=1.5) +
 geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), flipaxes = variable_split=="x2") +
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
-ggtitle(glue::glue("Weak learner at step: {step}"))) 
+ggtitle(glue::glue("Weak learner at step {step}"))) 
 
 # reweighted data
 n <- nrow(data_ada)
@@ -1312,7 +1330,7 @@ geom_parttree(data=adaboost_M$weak_learners[[step]], alpha=0.1, aes(fill=Y), fli
 scale_colour_manual(aesthetics = c('colour', 'fill'), values = c("dodgerblue", "orange")) +
 # playing with size scale we ensure a weight of 1/n has size 1.5 (ie standard ggplot size for points)
 scale_size(range = c(0, 5), limits = c(0, 10), breaks = seq(0, 10), guide='none') +
-ggtitle(glue::glue("Reweighted data after step: {step}"))) 
+ggtitle(glue::glue("Reweighted data after step {step}"))) 
 ```
 We run more iterations of AdaBoost
 ```{r}
@@ -1431,9 +1449,9 @@ grid <- bind_cols(grid, tibble(predict_ADA = predict_original_adaboost(adaboost_
 M <- 3
 adaboost_M <- fit_original_adaboost(data_ada, M)
 
-pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
-Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
-table(tibble(pred=pre, target=Y_target)) 
+# pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+# Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+# table(tibble(pred=pre, target=Y_target)) 
 
 grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
 
@@ -1470,9 +1488,9 @@ ada_error_rate <- bind_cols(new_mixture,
 M <- 50
 adaboost_M <- fit_original_adaboost(data_ada, M)
 
-pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
-Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
-table(tibble(pred=pre, target=Y_target)) 
+# pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+# Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+# table(tibble(pred=pre, target=Y_target)) 
 
 grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
 
@@ -1509,9 +1527,9 @@ ada_error_rate <- bind_cols(new_mixture,
 M <- 200
 adaboost_M <- fit_original_adaboost(data_ada, M)
 
-pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
-Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
-table(tibble(pred=pre, target=Y_target)) 
+# pre <- predict_original_adaboost(adaboost_M, data_ada %>% select(x1,x2))
+# Y_target <- as.integer(as.character(data_ada %>% pull(Y)))
+# table(tibble(pred=pre, target=Y_target)) 
 
 grid <- expand.grid(x1 = seq(-2.85, 4.5, .01), x2 = seq(-2.25, 3.1, .01)) %>% as_tibble()
 
@@ -1544,28 +1562,322 @@ ada_error_rate <- bind_cols(new_mixture,
     pull(l01))
 ```
 
+
 ## Derivation of AdaBoost: statistical view
 
+In @fht2000, authors derive AdaBoost as a Forward Stagewise Additive Model (FSAM) that minimizes the exponential loss. They also develop the approach in @hastie2009 (Chapter 10, Boosting and Additive Trees).
 
-## Introducing LogitBoost
+### AdaBoost fits an additive model
+
+First they remark that the Adaboost classifier after $M$ iterations is related to a "basis" function expansion or additive model:
+
+$$
+H(x) = \text{sign}(f_M(x))
+$$
+where:
+$$
+f_M(x) = \sum_{m=1}^M \alpha_m h(x,\gamma_m)
+$$
+$\alpha$ are the expansion coefficients or weights and $h(x,\gamma_m)$ are the "basis" functions or "learners", usually "simple" functions of $x$ parameterized by $\gamma$. 
+
+We can express $f$ iteratively as:
+
+$$
+f_m(x) = f_{m-1}(x) + \alpha_m h(x,\gamma_m)
+$$
+
+For example "learners" can be decision trees as seen before, where $\gamma$ refers to split variables/thresholds and leaf values.
+
+Such additive models are fit by minimizing a loss function of the training data $L(y,f(x))$:
+
+$$
+\underset{\{\alpha_m, \gamma_m\}_1^M}{\operatorname{min}}\sum_{i=1}^n L(y_i,\sum_{m=1}^M \alpha_m h(x_i,\gamma_m)) 
+$$
+Such optimization is in general intractable. A "greedy" approach is usually taken to approximate a solution.
+
+### Forward Stagewise Additive Model (FSAM)
+
+To simplify the preceding optimization, a "forward stagewise"  or "greedy" approach is taken.
+
+At a given iteration $m$, the expansion $f_{m-1}$ is fixed and we only optimize the weights $\alpha_m$ and current "learner" parameters $\gamma_m$. $f_{m}$ is obtained and the procedure repeats. Note that in the next step $f_{m}$ is fixed and we only optimize the weights and parameters for learner $m+1$.
+
+### AdaBoost fits a FSAM for exponential loss
+
+Let us first define or introduce the exponential loss:
+
+$$
+L(y,f(x)) = \exp(-yf(x)) = \exp(-\text{margin})
+$$
+Given a classifier $f(x)$, it is usual to define the margin as $yf(x)$.
+
+We then show that AdaBoost is equivalent to fitting FSAM for the exponential loss.
+
+We consider the problem:
+
+$$
+\begin{align*}
+(\alpha_m, \gamma_m) &=\underset{\{\alpha, \gamma\}}{\operatorname{argmin}}\sum_{i=1}^n \exp(-y_i f_m(x_i))  \\
+                              &=\underset{\{\alpha, \gamma\}}{\operatorname{argmin}}\sum_{i=1}^n \exp(-y_i(f_{m-1}(x_i) + \alpha h(x_i,\gamma)) \\
+                              &= \underset{\{\alpha, \gamma\}}{\operatorname{argmin}}\sum_{i=1}^n \omega_{m,i}\exp(-y_i \alpha h(x_i,\gamma))
+\end{align*} 
+$$
+
+where $\omega_{m,i}=\exp(-y_i f_{m-1}(x_i))$ acts as a weight and does not depend on $(\alpha, \gamma)$.
+
+The last expression rewrites:
+$$
+\begin{align*}
+\sum_{i=1}^n \omega_{m,i}\exp(-y_i \alpha h(x_i,\gamma)) &=e^{-\alpha}\sum_{i=1}^n \omega_{m,i}\mathbf 1_{y_i=h(x_i,\gamma)}+ e^{\alpha}\sum_{i=1}^n \omega_{m,i} 1_{y_i\neq h(x_i,\gamma)}\\
+ &= (e^{\alpha}-e^{-\alpha})\sum_{i=1}^n \omega_{m,i} 1_{y_i\neq h(x_i,\gamma)} + e^{-\alpha}\sum_{i=1}^n \omega_{m,i}\\
+ &= (e^{\alpha}-e^{-\alpha})\Omega_{m,err} + e^{-\alpha}\Omega_{m}
+\end{align*} 
+$$
+Having in mind that the term $\Omega_m =\sum_{i=1}^n \omega_{m,i}$ does not depend on $(\alpha, \gamma)$, for any $\alpha>0$ we have $e^{\alpha}-e^{-\alpha}>0$, so solving for $\gamma$ the problem:
+
+$$
+\begin{align*}
+\gamma_m &=\underset{\gamma}{\operatorname{argmin}}\sum_{i=1}^n \exp(-y_i f_m(x_i)) \\
+           &=\underset{\gamma}{\operatorname{argmin}}(e^{\alpha}-e^{-\alpha})\sum_{i=1}^n \omega_{m,i} 1_{y_i\neq h(x_i,\gamma)} + e^{-\alpha_m}\Omega_{m}
+\end{align*}
+$$
+
+is equivalent to solving:
+
+$$\begin{align*}
+\gamma_m &=\underset{\gamma}{\operatorname{argmin}}\sum_{i=1}^n \omega_{m,i} 1_{y_i\neq h(x_i,\gamma)}\\
+         &=\underset{\gamma}{\operatorname{argmin}}\Omega_{m,err}
+\end{align*}
+$$
+which does not depend on $\alpha_m$.
+
+This problem is specific to the base learners $h(x, \gamma)$ at stake, but amounts to solving a weighted (with $\omega_{m,i}$) classification problem. 
+
+For example when $h(x, \gamma)$ are decision trees, we obtain $\gamma_m$ by fitting a tree on the weighted training data.
+
+Having minimized $\Omega_{m,err}$ with respect to $\gamma$ (ie having fitted the learner), the $m\text{-th}$ iteration of FSAM is then solved by minimizing with respect to $\alpha$:
+
+$$
+(e^{\alpha}-e^{-\alpha})\Omega_{m,err} + e^{-\alpha}\Omega_{m}
+$$
+
+Taking the derivative with respect to $\alpha$ of this expression (for $\alpha>0$ the expression is convex in $\alpha$), we seek:
+
+$$
+\begin{align*}
+0 &=\alpha(e^{\alpha}+e^{-\alpha})\Omega_{m,err} -\alpha e^{-\alpha}\Omega_{m}\\
+         &\Leftrightarrow \\
+0  &=(e^{2\alpha}+1)\Omega_{m,err} -\Omega_{m} \\
+         &\Leftrightarrow \\
+\alpha  &=\frac{1}{2}\log(\frac{\Omega_{m}}{\Omega_{m,err}}-1) \\
+        &=\frac{1}{2}\log(\frac{1-\epsilon_{m}}{\epsilon_{m}}) 
+\end{align*}
+$$
+where:
+
+$$
+\epsilon_{m}=\frac{\Omega_{m,err}}{\Omega_{m}}= \frac{\sum_{i=1}^n \omega_{m,i} 1_{y_i\neq h(x_i,\gamma_m)}}{\sum_{i=1}^n \omega_{m,i}}
+$$
+is a weighted misclassification error.
+
+We retrieve the expression of the weights in AdaBoost algorithm $\alpha_m=\frac{1}2{}\log(\frac{1-\epsilon_{m}}{\epsilon_{m}})$ from Freund and Schapire.
+
+In all the derivation we have assumed that $\alpha>0$.
+
+Looking at the AdaBoost expression of $\alpha_m$ we see that it is equivalent to having $\epsilon_{m}<\frac{1}{2}$. This means that learner at step $m$ has to be better then random. If by any chance $\epsilon_{m}>\frac{1}{2}$ for $h(x,\gamma_m)$, one could take $-h(x,\gamma_m)$ as the classifier.
+
+We now look at the update of weights $\omega_{m+1,i}=\exp(-y_i f_{m}(x_i))$ after this step, we have the recursion:
+
+$$
+\omega_{m+1,i}=\omega_{m,i}\exp(-y_i \alpha_m h(x_i,\gamma_m))
+$$
+which looks like the weight in Freund & Schapire Algortihm 1.1.
+
+It can be rewritten as in @hastie2009, defining $\hat\alpha_m=2\alpha_m=\log(\frac{1-\epsilon_{m}}{\epsilon_{m}})$: 
+
+$$
+\omega_{m+1,i}=\omega_{m,i}\exp(\hat\alpha_m 1_{y_i\neq h(x_i,\gamma_m)})\exp(-\frac{\hat\alpha_m}{2})
+$$
+using the fact that $-y_i h(x_i,\gamma_m) =2\times1_{y_i\neq h(x_i,\gamma_m)})+1$.
+
+In the implementation of AdaBoost algorithm proposed before `fit_original_adaboost`, we tested both Freund & Schapire and @hastie2009 formulations which perform identically. 
+
+Note that this FSAM view of AdaBoost was derived years after the Algorithm was proposed. Motivations and justifications of the original algorithm were not directly linked to an optimization / minimization of risk problem, see for example @boosting2012. But at some point, the use of exponential function in the algorithm has allow tractable formulas, allowing for example to express simple recursions. 
+
+### Loss functions for binary classification / margin [DRAFT]
+
+#### Theoretical minimizer for exponential loss
+
+Starting from this FSAM view of AdaBoost for a specific loss function, the exponential loss, the authors of @fht2000 started to assess if alternative loss functions could be used in the context of Boosting.
+
+First they try to understand what optimum function is approximated by the AdaBoost approach and show that the function that minimizes the risk for exponential loss is (see for example exercise 10.2 of @hastie2009):
+
+$$
+\begin{align*}
+f^*(x)&=\underset{f}{\operatorname{argmin}}\mathbb{E}[\ell(Y,f(x))|x]\\
+      &=\underset{f}{\operatorname{argmin}}\mathbb{E}[e^{-Yf(x)}|x] \\
+      &=\frac{1}{2}\log(\frac{\mathbb{P}[Y=1|X=x)]}{\mathbb{P}[Y=-1|X=x)]})
+\end{align*}
+$$
+So the $f_M$ estimated by AdaBoost approximates half the log odds of the  data generating distribution $\mathbf P_{\mathrm X \times \mathrm Y}$.
+
+Conversely: $\mathbb{P}[Y=1|X=x)]=\frac{e^{f^{*}(x)}}{e^{-f^{*}(x)}+e^{f^{*}(x)}}=\frac{1}{1+e^{-2f^{*}(x)}}$
+
+#### Another view on logistic loss:
+
+In the first lesson we briefly saw that the Logistic Regression model was seeking to minimize the Risk for a specific loss (ie maximize a log-likelihood). Having modeled $p_\beta(x)=\mathbb{P}[Y=1|X=x)]$ as $p_\beta(x)=\sigma(x^T\beta)=\frac{e^{x^{T} \beta}}{1+e^{x^{T} \beta}}$ the problem was to maximize the log likelihood on the observations which was equivalent to minimizing the Risk for the logistic loss:
+
+$$
+\begin{align*}
+\ell(Y,\beta)=\log L(Y,\beta) &=\sum_{i=1}^n \left(y_i \log(p_{\beta}(x_i))+(1-y_i) \log(1- p_{\beta}(x_i))\right) \\
+                              &=-\sum_{i=1}^{n} \ell_{logistic} \left(p_{\beta}(x_i),y_i\right) \\
+                              &= -n\hat{\mathrm R}(p_\beta) 
+\end{align*} 
+$$
 
 
+$$
+\ell_{logistic}(y,\eta(x)) = -y\log(\eta(x))-(1-y)\log(1-\eta(x))=\left\{ \begin{array}{ll} 
+    -\log(\eta) &  \mbox{if } y = 1\cr
+    -\log(1-\eta) &  \mbox{if } y = 0\cr
+\end{array} \right.
+$$
+Here the authors parameterize the binomial probabilities by:
 
-## Gradient Boosting (Machines)
+$p(x)=\frac{e^{f(x)}}{e^{f(x)}+e^{-f(x)}}=\frac{1}{1+e^{-2f(x)}}$
 
-breaktrough Showing importance of trees / using learning rate eta improves testing error
+and introduce $Y' = \frac{Y+1}{2} \in \{0, 1\}$ for $Y \in \{-1, 1\}$.
 
-plus Relative importance of input variables and PDP (Partial dependence plots)
+$$\begin{align*}
+\ell_{logistic}(Y',p(x)) &= -Y'\log(p(x))-(1-Y')\log(1-p(x)) \\
+                         &= Y'\log(1+e^{-2f(x)})+(1-Y')\log(1+e^{2f(x)}) \\ 
+                         &= (\frac{Y+1}{2})\log(1+e^{-2f(x)})-(\frac{Y-1}{2})\log(1+e^{2f(x)}) \\ 
+\end{align*}
+$$
 
-## Modern Implementations (Machines)
+so that:
 
+$$
+\ell_{logistic}(Y',p(x))=\left\{ \begin{array}{ll} 
+    \log(1+e^{-2f(x)}) &  \mbox{if } Y = 1\cr
+    \log(1+e^{2f(x)}) &  \mbox{if } Y= -1\cr
+\end{array} = \log(1+e^{-2Yf(x)})\right.
+$$
 
-### xgboost degenerate to rpart
+#### Convex surrogates for 0-1 loss [DRAFT]
+
+As we have seen before for the exponential loss, we can rewrite loss functions for binary classification in terms of margin.
+Given a classifier $f(x)$, margin is defined as $yf(x)$.
+
+Then the loss function assigning a small value to positive margins (ie correct classifications) and a large value to negative margins (ie wrong classifications).
+
+A key concept in machine learning is the use of convex surrogate losses, where we replace the 0-1 loss or misclassification by another loss allowing to perform numerical optimization (due to convexity).
+
+Outside the scope of this course: one can show that for binary classification, optimal predictions can be achieved with convex surrogates of the 0–1 loss (see for example @bartlett2006 or Francis Bach - Learning Theory from First Principles (Chapter 4)).
+
+We display below loss functions for binary classification expressed in terms of margin:
 
 ```{r}
+losses <- tibble(margin = seq(-3.5, 3.5, length.out=1000)) %>%
+                  mutate(`0-1 loss` = as.numeric(margin<0),
+                          Logistic = log(1+ exp(-margin)),
+                          Hinge = pmax(1-margin, 0),
+                          Logistic = 1/log(2)*log(1+ exp(-margin)), # rescaled to be 1 at 0
+                          # Logistic = log(1+ exp(-margin)),
+                          Exponential = exp(-margin),
+                          Square = (1-margin)^2) %>% 
+                  pivot_longer(!margin, names_to = "Loss", values_to = "value")
+
+ggplot(losses, aes(x=margin, y=value, color=Loss)) + 
+  geom_line() +
+  xlab("margin=y.f(x)") +
+  ylab("Loss(margin)") +
+  coord_cartesian(xlim = c(-3,3), ylim = c(0,3)) +
+  scale_color_brewer(palette = "Dark2") +
+  theme_bw() 
+```
+
+## Introducing LogitBoost as an optimisation method in "function space"
+
+In @gbm2021 Friedman introduces the concept of numerical optimization (ie Gradient descent) in "function space" to solve the general problem:
+
+$$
+f^*=\underset{f}{\operatorname{argmin}}\mathrm R(f)=\underset{f}{\operatorname{argmin}}\mathbb{E}[L(Y,f(X))]
+$$
+
+or for each $x$ in $\mathrm X$:
+$$
+
+f^*(x)=\underset{f}{\operatorname{argmin}}\mathrm R(f(x))=\underset{f}{\operatorname{argmin}}\mathbb{E}[L(Y,f(x))|X=x]
+$$ 
+
+and more practically at each point of the given training data $x_i$, $i = 1, \cdots ,n$.
+
+Similarly to what we have seen with Forward Stagewise Additive Modeling we estimate $f$ iteratively as:
+
+$$
+f_m(x) = f_{m-1}(x) + f^{m}(x)
+$$
+
+with $f^{m}(x)$ a step in the function space, similar to a gradient boosting or Newton Raphson step in an usual iterative algorithm.
+
+Indeed starting from an initial guess $f^0$, one sequentially add steps:
+$$
+f_M(x) = \sum_{m=0}^M f^m(x)
+$$
+
+At the start of iteration $m$, the current estimate is given by $f_{m-1}$. At that "point" in function space, the direction to the steepest descent of the Risk we seek to minimize, is given by the opposite of the gradient with respect to $f(x)$:
+
+$$
+\text{grad}^m(x)=\left.\frac{\partial\mathrm R(f)}{\partial f(x)}\right|_{f(x)=f_{m-1}(x)}=\left.\frac{\partial \mathbb{E}[L(Y,f(x))|X=x]}{\partial f(x)}\right|_{f(x)=f_{m-1}(x)} =  \mathbb{E} \left[\frac{\partial L(Y,f(x))}{\partial f(x)}|X=x\right]_{f(x)=f_{m-1}(x)}
+$$
+
+Friedman also introduces a step length or "learning rate" to take in the opposite direction of the gradient, this step is determined using "line search", that is:
+
+$$
+\rho^m=\underset{\rho}{\operatorname{argmin}}\mathbb{E}[L(Y,f_{m-1}(x) -\rho \text{grad}^m(x)]
+$$
+
+giving a step $f^m(x) =-\rho_m \text{grad}^m(x)$
+
+
+Similarly a Newton Raphson method in function space can be defined. The problem is solved at each step $m$:
+
+$$
+\left.\frac{\partial \mathbb{E}[L(Y,f_{m-1}(x)+f^m(x))|X=x]}{\partial f^m(x)}\right.=0
+$$
+using a second-order expansion of $\mathbb{E}[L(Y,f_{m-1}(x)+f^m(x))|X=x]\approx\mathbb{E}[L(Y,f_{m-1}(x)|X=x]+\text{grad}^m(x)f^m(x)+\frac{1}{2}\text{hessian}^m(x)f^m(x)^2$
+
+where hessian is:
+
+$$
+\text{hessian}^m(x)=\left.\frac{\partial^2\mathrm R(f)}{\partial f(x)^2}\right|_{f(x)=f_{m-1}(x)}=\left.\frac{\partial^2 \mathbb{E}[L(Y,f(x))|X=x]}{\partial f(x)^2}\right|_{f(x)=f_{m-1}(x)} =  \mathbb{E} \left[\frac{\partial^2 L(Y,f(x))}{\partial f(x)^2}|X=x\right]_{f(x)=f_{m-1}(x)}
+$$
+Thus:
+
+$$
+\left.\frac{\partial \mathbb{E}[L(Y,f_{m-1}(x)+f^m(x))|X=x]}{\partial f^m(x)}\right.\approx \text{grad}^m(x)+\text{hessian}^m(x)f^m(x)=0
+$$
+giving a Newton-Raphson step in function space:
+
+$$
+f^m(x) = -\frac{\text{grad}^m(x)}{\text{hessian}^m(x)}
+$$
+
+
+## Practical Implementations
+
+We first start by implementing the original Logitboost algorithm as described in @fht2000:
+
+![](images/logitboost_algo.png){fig-align="center"}
+It is a Forward Stagewise Additive Method, at each iteration a Newton step is perform, in the context of Decision Trees, this step is equivalent to fitting a Regression Tree on weighted residuals.
+
+We check our implementation against `xgboost`
+
+```{r}
+#| code-fold: show
 num_tree <- 6
 
-# Degenerate xgboost
+# Degenerate xgboost to compare with our implementation (ie no penalty, using stumps and similar parameters)
 library(xgboost)
 xgb_deg <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
         label = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)) %>% pull(Y),
@@ -1605,53 +1917,9 @@ xgb_clean_tree %>% select(rule, left_pred, right_pred)
 # 5 f0<-0.967202127     1.51      -0.158
 # 6 f1<-0.344325602    -1.13       0.136
 
-# Friedman MART / gbm
-# https://stackoverflow.corpart foircem/questions/31296541/understanding-tree-structure-in-r-gbm-package
-# remotes::install_github("gbm-developers/gbm3", build_vignettes = TRUE, force = TRUE)
-library(gbm)
-gbm_deg <- gbm(Y~x1+x2,
-        data = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)),
-        n.trees = 6, 
-        distribution = "bernoulli",
-        interaction.depth = 1,
-        # n.minobsinnode comparable to rpart minbucket
-        n.minobsinnode = 1,
-        shrinkage = 1,
-        bag.fraction = 1)
 
-list_gbm_trees <- list()
-for(m in 1:num_tree){
-  tree <- gbm_deg$trees[[m]]
-  list_gbm_trees[[m]] <- tibble(var = if_else(tree[[1]][1]==0, "x1", "x2"),
-         split = tree[[2]][1],
-         left_pred = tree[[2]][2],
-         right_pred = tree[[2]][3])
-}
-gbm_trees <- bind_rows(list_gbm_trees) %>% 
-              mutate(rule = ifelse(var=="x1", glue::glue("f0<{round(split,9)}"), glue::glue("f1<{round(split,9)}")))
-
-gbm_trees %>% select(rule, left_pred, right_pred)
-# # A tibble: 6 × 3
-#   rule            left_pred right_pred
-#   <chr>               <dbl>      <dbl>
-# 1 f1<0.14412705     -1.69        0.595
-# 2 f1<0.927962775    -0.721       0.508
-# 3 f0<2.125986653     0.277      -1.44 
-# 4 f0<0.991148884    -0.404       0.524
-# 5 f0<-0.967202093    1.51       -0.158
-# 6 f0<3.07754902     -0.0118      1.24
-
-# pretty.gbm.tree(gbm_deg, i.tree=1)
-#   SplitVar SplitCodePred LeftNode RightNode MissingNode ErrorReduction Weight Prediction
-# 0        1     0.1441271        1         2           3       12.57796    200  0.0000000
-# 1       -1    -1.6923077       -1        -1          -1        0.00000     52 -1.6923077
-# 2       -1     0.5945946       -1        -1          -1        0.00000    148  0.5945946
-# 3       -1     0.0000000       -1        -1          -1        0.00000    200  0.0000000
-
-# Although the methods are not totally eauivalent (xgboost is Newton, gbm is Gradient based), the underlying stumps roughly agree
 
 # Implementing original Logitboost algorithm FHT2000 using rpart
-
 data_train <- data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1))
 
 fit_original_logitboost <- function(data_train, M, minbucket=1, verbose=FALSE){
@@ -1798,15 +2066,16 @@ pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
 abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
 ```
 
-LogitBoost decision boundaries
+We show LogitBoost decision boundary, here after $100$ iterations using our version of the algorithm:
 
 
 ```{r}
+#| code-fold: show
 tree_number <- 100
 
 logitboost_M <- fit_original_logitboost(data_train, tree_number, FALSE)
 
-tree_number_predict <- 20
+tree_number_predict <- 100
 
 
 n <- nrow(data_train)
@@ -1854,7 +2123,10 @@ logitboost_error_rate <- bind_cols(new_mixture,
 
 ```
 
+Here after $20$ iterations using `xgboost`:
+
 ```{r}
+#| code-fold: show
 tree_number <- 100
 
 data_train_xgboost <- as.matrix(data_mixture_example %>% select(x1, x2))
@@ -1908,36 +2180,17 @@ grid <- bind_cols(grid, tibble(predict_logitboost = predict(xgboost_M, as.matrix
           ) +
     guides(stroke="none"))
 ```
-Train / Test curves for logitboost original
 
-We vary the number of tree fitted $M$ and show the empirical risks on training and testing sets together with Bayes risk:
-
-We estimate Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots).
-
-```{r}
-bayes_error_rate <- new_mixture %>%
-    mutate(Y = if_else(Y=="BLUE", 0, 1),
-           predict_oracle = predict_oracle_V(x1, x2),
-           l01 = if_else(Y==predict_oracle, 0, 1))
-
-bayes_test_risk <- bayes_error_rate %>%
-    summarise(l01 = mean(l01)) %>% 
-        pull(l01)
-
-bayes_error_rate_train <- data_mixture_example %>%
-    mutate(Y = if_else(Y=="0", 0, 1),
-           predict_oracle = predict_oracle_V(x1, x2),
-           l01 = if_else(Y==predict_oracle, 0, 1))
-
-bayes_train_risk <- bayes_error_rate_train %>%
-    summarise(l01 = mean(l01)) %>% 
-        pull(l01)
-```
 
 
 Gradient Boosting version of LogitBoost
 
+![](images/mart_algo1.png){fig-align="center"}
+
+![](images/mart_algo2.png){fig-align="center"}
+
 ```{r}
+#| code-fold: show
 fit_l01_treeboost <- function(data_train, M, shrink = 1.0, verbose=FALSE){
   # fits friedman2001 version of LogitBoost (so called LK_TreeBoost or MART, Algorithm 5)
   # expect data with Y column in {-1, 1}, with only additional predictors (as we will use formula Y ~ .)
@@ -2044,6 +2297,52 @@ fit_l01_treeboost <- function(data_train, M, shrink = 1.0, verbose=FALSE){
 return(list(weak_learners=weak_learner, probs=p))
   
 }
+
+# Friedman MART / gbm
+# https://stackoverflow.corpart foircem/questions/31296541/understanding-tree-structure-in-r-gbm-package
+# remotes::install_github("gbm-developers/gbm3", build_vignettes = TRUE, force = TRUE)
+library(gbm)
+gbm_deg <- gbm(Y~x1+x2,
+        data = data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1)),
+        n.trees = 6, 
+        distribution = "bernoulli",
+        interaction.depth = 1,
+        # n.minobsinnode comparable to rpart minbucket
+        n.minobsinnode = 1,
+        shrinkage = 1,
+        bag.fraction = 1)
+
+list_gbm_trees <- list()
+for(m in 1:num_tree){
+  tree <- gbm_deg$trees[[m]]
+  list_gbm_trees[[m]] <- tibble(var = if_else(tree[[1]][1]==0, "x1", "x2"),
+         split = tree[[2]][1],
+         left_pred = tree[[2]][2],
+         right_pred = tree[[2]][3])
+}
+gbm_trees <- bind_rows(list_gbm_trees) %>% 
+              mutate(rule = ifelse(var=="x1", glue::glue("f0<{round(split,9)}"), glue::glue("f1<{round(split,9)}")))
+
+gbm_trees %>% select(rule, left_pred, right_pred)
+# # A tibble: 6 × 3
+#   rule            left_pred right_pred
+#   <chr>               <dbl>      <dbl>
+# 1 f1<0.14412705     -1.69        0.595
+# 2 f1<0.927962775    -0.721       0.508
+# 3 f0<2.125986653     0.277      -1.44 
+# 4 f0<0.991148884    -0.404       0.524
+# 5 f0<-0.967202093    1.51       -0.158
+# 6 f0<3.07754902     -0.0118      1.24
+
+# pretty.gbm.tree(gbm_deg, i.tree=1)
+#   SplitVar SplitCodePred LeftNode RightNode MissingNode ErrorReduction Weight Prediction
+# 0        1     0.1441271        1         2           3       12.57796    200  0.0000000
+# 1       -1    -1.6923077       -1        -1          -1        0.00000     52 -1.6923077
+# 2       -1     0.5945946       -1        -1          -1        0.00000    148  0.5945946
+# 3       -1     0.0000000       -1        -1          -1        0.00000    200  0.0000000
+
+# Although the methods are not totally eauivalent (xgboost is Newton, gbm is Gradient based), the underlying stumps roughly agree
+
 
 # Compare gbm prediction (with learning rate = 1 etc, and using stumps) 
 # with gradient boosting flavor of logitboost original fit on data_train
@@ -2185,6 +2484,31 @@ mart_error_rate <- bind_cols(new_mixture,
     pull(l01))
 ```
 
+Train / Test curves for AdaBoost, LogitBoost and MART
+
+We vary the number of tree fitted $M$ and show the empirical risks on training and testing sets together with Bayes risk:
+
+We estimate Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots).
+
+```{r}
+bayes_error_rate <- new_mixture %>%
+    mutate(Y = if_else(Y=="BLUE", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_test_risk <- bayes_error_rate %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+
+bayes_error_rate_train <- data_mixture_example %>%
+    mutate(Y = if_else(Y=="0", 0, 1),
+           predict_oracle = predict_oracle_V(x1, x2),
+           l01 = if_else(Y==predict_oracle, 0, 1))
+
+bayes_train_risk <- bayes_error_rate_train %>%
+    summarise(l01 = mean(l01)) %>% 
+        pull(l01)
+```
 
 Comparing Adaboost, Logitboost, Mart (Gradient Boosting version of Logitboost):
 
@@ -2295,6 +2619,10 @@ misclass_plot <- bind_rows(misclass_curve) %>%
     labs(col = NULL, linetype=NULL))
 ```
 
+
+
+TODO comparing for various values of shrink / learning rate parameter
+
 ```{r}
 tree_number <- 400
 
@@ -2404,8 +2732,23 @@ labs(col = NULL, linetype=NULL)
 
 ## Ping Li Robust Logitboost formula
 
+We then investigate a more recent version of LogitBoost algorithm, allowing to close the gap between the original @fht2000 and the more recent and state of the art `xgboost` @xgboost2016.
 
-Defining specialized xgboost/robust logitboost impurity (using Gradient, Hessian, $\lambda$, $\gamma$):
+![](images/robust_logitboost_algo.png){fig-align="center"}
+
+![](images/robust_logitboost_gain1.png){fig-align="center"}
+
+![](images/robust_logitboost_gain2.png){fig-align="center"}
+![](images/xgboost_gain.png){fig-align="center"}
+The underlying idea common to both Robust LogitBoost and `xgboost` is to take advantage of some simplifications that occur for Gradient Boosting / Newton methods when base learners are Decision Trees. In particular it is possible to show that the problem is equivalent to fitting a Decision Tree using a novel splitting formula, more precisely using a Sum of Squares criterion (Regression tree) involving the gradient and the hessian of any convex loss.
+
+In the @hastie2009, authors suggest that AdaBoost or any comparable FSAM can be fitted using specialized trees (ie specific gain used to split), but prefer to follow the approach of Friedman's Gradient Boosting:
+![](images/ESL_specialized_trees.png){fig-align="center"}
+
+
+We implement here the Ping Li Robust LogitBoost method, re-using our implementation of a Decision Tree at the start of the course.
+
+First defining specialized `xgboost` / Robust LogitBoost gains (using Gradient, Hessian, $\lambda$):
 ```{r}
 #| code-fold: show
 xgboost_gain <- function(tbl, y, verbose = FALSE){
@@ -2419,6 +2762,8 @@ xgboost_gain <- function(tbl, y, verbose = FALSE){
   gain
 }
 ```
+
+Then slightly modifying the other functions to adapt the problem to a regression (the implementation at the start of the lesson was dedicated to binary classification problem):
 
 ```{r}
 #| code-fold: show
@@ -2506,10 +2851,7 @@ test <- max_gain(tbl_node, y_name, x_names, min_leaf = 1, midpoint = TRUE)
 ```
 
 
-
-
-
-We plot for variables $x_1$ and $x_2$ the xgboost gain for each possible split of data:
+We plot for variables $x_1$ and $x_2$ the `xgboost` gain for each possible split of data:
 
 ```{r}
 ggplot(test , aes(x=split_rule, y =imp_total, col = feature_split)) + geom_point()
@@ -2679,7 +3021,10 @@ mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 1, min_leaf = 1
 ```{r}
 print_regression_tree(mixture_node_boost)
 ```
-Our toy implementation of Robust Logitboost agrees with xgboost:
+
+Our toy implementation of Robust Logitboost agrees with xgboost in terms of base learners fitted:
+
+Checking for depth 1 weak learners:
 
 ```{r}
 xgb_depth2 <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
@@ -2747,6 +3092,8 @@ build_regression_tree_rule <- function(grown_tree, list_rules){
     }
 }
 ```
+
+We define here a function
 
 ```{r}
 #| code-fold: show
@@ -2915,6 +3262,12 @@ abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
 
 ```{r}
 
+```
+
+
+
+```{r}
+#https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_regularization.html#sphx-glr-auto-examples-ensemble-plot-gradient-boosting-regularization-py
 ```
 
 ## Appendix
@@ -3100,11 +3453,15 @@ plt.show()
 ```
 
 
+## Gradient Boosting (Machines)
 
-Problems (see Geron p249)
-Figure 6-7. Sensitivity to training set rotation
-Figure 6-8. A tree’s decision boundaries on the scaled and PCA-rotated iris dataset)
+breaktrough 
 
+Showing importance of trees  
+
+Using learning rate eta <1 improves testing error
+
+plus introduction of Relative importance of input variables and PDP (Partial dependence plots)
 <!--  in the original CART 5.2.2  --- -->
 
 <!-- In some data, the classes are naturally separated by hyperplanes not perpendicular to the coordinate axes. These problems are difficult for the unmodified tree structured procedure and result in large trees as the algorithm attempts to approximate the hyperplanes by multidimensional rectangular regions. To cope with such situations, the basic structure has been enhanced to allow a search for best splits over linear combinations of variables.--- -->
