@@ -1,0 +1,223 @@
+---
+title: "Exam - Take home"
+format:
+  html:
+    highlight: espresso
+    code-copy: true
+    df-print: paged
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+  pdf:
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+execute: 
+  cache: true
+  warning: false
+fontsize: 11pt
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(glmnet)
+library(glmnetUtils)
+library(rpart)
+library(rpart.plot)
+library(xgboost)
+```
+
+```{r}
+# loading data 
+data_fin_exam <- readRDS('data/data_fin_exam.rds')
+```
+
+These two exercises are intentionally less directed than the in-class exam to encourage exploration and personal implementation. The goal of the exercises is to explore a method together with corresponding R packages, understand their basic usage then implement it or experiment their behaviour.
+
+# Exercise: Lasso: choice of lambda using hold out / cross-validation (20% total points)
+
+**TO DO at-home**
+
+The aim of this exercise is to find an optimal value of the lambda parameter for Lasso regression.
+You won't use the built-in functions `glmnetUtils::cv.glmnet` or `glmnet::cv.glmnet`, as done for the exam.
+
+- First assume a simpler problem where your data set is split in training and testing set (you can use the exam `data_fin_exam`/`data_fin_holdout`).
+
+```{r}
+# YOUR CODE HERE
+```
+  
+- Fit the Lasso path (more details [here](https://glmnet.stanford.edu/reference/glmnet.html)) on the training set making use of `glmnetUtils::glmnet` or `glmnet::glmnet` functions
+
+```{r}
+# YOUR CODE HERE
+```
+
+- using the `glmnet` object and `predict` function, for each lambda of the Lasso path (or better for all lambdas at once) obtain the predicted probabilities on the testing/holdout set
+
+```{r}
+# YOUR CODE HERE
+```
+
+- using the preceding step you should be able to compute the hold-out error (or criterion if AUC) for each lambda (you can use a `for` loop), then conclude on the best lambda
+
+```{r}
+# YOUR CODE HERE
+```
+
+- going one step further, replace the hold-out approach by a K-Fold Cross Validation (for each fold of you data, compute the cross-validation error (or criterion) for each lambda (you can use two imbricated `for` loops)); you can then conclude on the best lambda in terms of mean cross-validation error (or criterion). Finally compare the lambda chosen using your approach with the built-in function `cv.glmnet` described [here](https://glmnet.stanford.edu/reference/cv.glmnet.html).
+
+```{r}
+# YOUR CODE HERE
+```
+
+
+# Exercise: Decision trees (30% total points)
+
+**TO DO at-home**
+
+- `CART/rpart`
+
+  - Using the data set `data_fin_exam`, build and plot a decision tree of you choice using `rpart`. You can use default parameters, and this way learning them. (see for example 2. Building the tree [here](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf)
+
+Try to display class probabilities and number of observations per node/leaf (for that explore functions `rpart.plot` or `pdp` from package `rpart.plot` see [vignette](http://www.milbo.org/doc/prp.pdf)).
+
+```{r}
+# YOUR CODE HERE
+```
+
+  - Playing with `rpart` parameters (in particular those inside `rpart.control`), fit, plot, then compare a "large/deep" decision tree and a "smaller/shallower" tree in terms of ROC/AUC/prediction on the holdout set.
+
+```{r}
+# YOUR CODE HERE
+```
+
+  - Describe in simple terms the output of the `printcp` function (see for example 4. Pruning the tree [here](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf). You don't have to understand deeply the pruning process but understand what is at stake in the process.
+
+```{r}
+# YOUR CODE HERE
+```
+
+  - Choose an arbitrary terminal number of leafs and prune the tree using the `prune` function.
+
+```{r}
+# YOUR CODE HERE
+```
+
+  - Select the optimal `cp` parameter for your tree (you can use a plot) and compare to the "large" and "small" models in terms of AUC.
+
+```{r}
+# YOUR CODE HERE
+```
+
+- Gradient boosting
+
+Using a gradient boosting package of your choice (`gbm`, `xgboost`), play with number of boosting iterations, weak learner complexity (decision tree depth, min number of observations), learning rate. Compare also logistic loss with exponential loss (adaboost) as was done in the lesson 3 of the course using a naive implementations.
+
+```{r}
+# YOUR CODE HERE
+```
+
+You can take inspiration from this graph: [here](https://scikit-learn.org/1.5/auto_examples/ensemble/plot_gradient_boosting_regularization.html))
+
+Example usage of `gbm` (more [here](https://cran.r-project.org/web/packages/gbm/vignettes/gbm.pdf), see for example the Figure 3 showing Out-of-sample predictive performance by number of iterations and shrinkage):
+
+```{r}
+# library(gbm)
+# gbm_deg <- gbm(Y~.,
+#            data = YOUR_DATA,
+#            n.trees = N, # number of boosting iterations
+#            distribution = "bernoulli", # loss minimized
+#            interaction.depth = 1, 
+#            /!\ interaction.depth (~#{terminal nodes}+1) <> rpart maxdepth
+#                n.minobsinnode = 1, # comparable to rpart minbucket
+#            shrinkage = 1, # learning rate
+#            bag.fraction = 1) # set at 1 to implement pure boosting 
+#            # (otherwise stochastic boosting, ie mix of boosting and bagging)
+```
+
+Example usage of `xgboost` (more [here]() or [here](https://xgboost.readthedocs.io/en/stable/R-package/xgboostPresentation.html) for the `R` package):
+
+```{r}
+#library(xgboost)
+# xgb_deg <- xgboost(data = as.matrix(YOUR_PREDICTORS),
+#            label = as.vector(YOUR_TARGET),
+#            max.depth = 1, # comparable to rpart maxdepth
+#            eta = 1, # learning rate
+#            nthread = 1,
+#            nrounds = num_tree, # number of boosting iterations
+#             min_child_weight = 0, # similar but not comparable to rpart minbucket
+#             objective = "binary:logistic", # loss minimized
+#             lambda = 0, # set at 0 to avoid L2 penalization
+#             tree_method = "exact") 
+```
+
+
+# Project preparation - before next week lesson - Register to WRDS / Groups composition due 9 October (3 is good so that you can split tasks efficiently)
+
+**TO DO at-home**
+
+In order to access the project data, you have to register a `WRDS` account with your `@ut-capitole.fr` email. 
+First go to this url: [https://wrds-www.wharton.upenn.edu/register/](https://wrds-www.wharton.upenn.edu/register/) and follow the steps:
+
+![](../assets/wrds_register.png)
+
+It takes roughly a week (or less) to be validated by `ut-capitole` teams. 
+
+You will get a user/password and will have to setup a [2FA authentication](https://wrds-www.wharton.upenn.edu/pages/about/log-in-to-wrds-using-two-factor-authentication/) (preferably using the mobile app `Duo Mobile`).
+
+![](../assets/wrds_accepted.png)
+Once you get your user/password, you can test an SQL request with `R` to the WRDS server as explained [here](https://www.tidy-finance.org/r/wrds-crsp-and-compustat.html) in detail, or in the sample code below:
+
+
+```{r, message=FALSE, warning=FALSE}
+#| echo: true
+
+library(tidyverse)
+library(dbplyr)
+library(RPostgres)
+
+# First create two environment variables to connect wrds
+# in a terminal: touch $HOME/.Renviron
+# inside the .Renviron file
+# wrds_user = your_user
+# wrds_password = your_password
+
+wrds <- dbConnect(
+    Postgres(),
+    host = "wrds-pgdata.wharton.upenn.edu",
+    dbname = "wrds",
+    port = 9737,
+    sslmode = "require",
+    user = Sys.getenv("wrds_user"),
+    password = Sys.getenv("wrds_password")
+)
+
+# Otherwise use user/password within your code at your own risk
+# wrds <- dbConnect(
+#   Postgres(),
+#   host = "wrds-pgdata.wharton.upenn.edu",
+#   dbname = "wrds",
+#   port = 9737,
+#   sslmode = "require",
+#   user = "YOUR_WRDS_USER",
+#   password = "YOUR_WRDS_PWD"
+# )
+
+
+# Retrieve Altman ratios for APPLE INC
+
+# Use dplyr verbs with a remote database table
+# https://dbplyr.tidyverse.org/reference/tbl.src_dbi.html
+funda_db <- tbl(wrds, in_schema("comp", "funda"))
+funda_db %>% 
+  filter(grepl('APPLE INC', conm)) %>% 
+  select(gvkey, fyear, conm, at, wcap, re, ebit, lt, sale) %>% 
+  mutate(WCTA = wcap / at,
+         RETA = re / at,
+         EBTA = ebit / at,
+         TLTA  = lt / at, # as a proxy for ME/TL
+         SLTA = sale / at)
+```
