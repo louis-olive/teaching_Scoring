@@ -1,0 +1,330 @@
+---
+title: "Exam - In class"
+format:
+  html:
+    highlight: espresso
+    code-copy: true
+    df-print: paged
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+  pdf:
+    number-sections: true
+    toc: true
+    toc_depth: 3
+    toc_float: yes
+execute: 
+  cache: true
+  warning: false
+fontsize: 11pt
+---
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+library(tidyverse)
+```
+
+# Introduction
+
+The goal of this exam is to build and assess a predictive model to quantify the probability of corporate default **with a 1-year horizon**, using annual financial statement data reported by companies. 
+Financial statement data (both financial statement items and ratios) relating to these companies is available in a data set. 
+
+The data set is anonymized, neither companies names/identifiers nor fiscal years are given. 
+
+When a corporate default (column `Y`) occurs for a company during a given fiscal year, say `N`, the observation (ie row in data set) of the preceding fiscal year (`N-1`) for this company shows a value of `1` in the column `Y`, `0` otherwise. 
+
+Your goal is to predict corporate default with a 1-year horizon. 
+
+We briefly describe the columns of the data set (Rows: 4,353 Columns: 44):
+
+-   `Y`: 0 for a healthy company (ie no default during the next fiscal year), 1 for a company in default during the next fiscal year; 
+
+First a set of financial statements items mainly coming from companies income statements or balance sheets:
+
+-   `capx`: Capital Expenditures (see [here](https://en.wikipedia.org/wiki/Capital_expenditure)).
+
+-   `che`: Cash and Equivalents (see [here](https://en.wikipedia.org/wiki/Cash_and_cash_equivalents)).
+
+-   `cogs`: Cost of Goods Sold (see [here](https://en.wikipedia.org/wiki/Cost_of_goods_sold)).
+
+-   `dp`: Depreciation and Amortization (see [here](https://en.wikipedia.org/wiki/Amortization_(accounting))).
+
+-   `act`: Current Assets (see [here](https://en.wikipedia.org/wiki/Current_asset).
+
+-   `lct`: Current Liabilities  (see [here](https://en.wikipedia.org/wiki/Current_liability)).
+
+-   `ebit`: Earnings Before Interest and Taxes (see [here](https://en.wikipedia.org/wiki/Earnings_before_interest_and_taxes)).
+
+-   `ebitda`: Earnings Before Interest, Taxes, Depreciation and Amortization (see [here](https://en.wikipedia.org/wiki/Earnings_before_interest,_taxes,_depreciation_and_amortizations)).
+
+-   `re`: Retained Earnings (see [here](https://en.wikipedia.org/wiki/Retained_earnings)).
+
+-   `gp`: Gross Profit (see [here](https://en.wikipedia.org/wiki/Gross_income)).
+
+-   `ib`: (Net) Income Before Extraordinary Items (see [here](https://www.inc.com/encyclopedia/net-income.html)).
+
+-   `xint`: Interest Expense (see [here](https://en.wikipedia.org/wiki/Interest_expense)).
+
+-   `dltt`: Long-Term Debt (see [here](https://www.investopedia.com/terms/l/longtermdebt.asp)).
+
+-   `ni`: Net Income (see [here](https://en.wikipedia.org/wiki/Net_income) or [here](https://www.inc.com/encyclopedia/net-income.html)).
+
+-   `ppent`: Property, Plant, and Equipment (see [here](https://en.wikipedia.org/wiki/Fixed_asset)).
+
+-   `sale`: Net Sales (see [here](https://en.wikipedia.org/wiki/Sales_(accounting))).
+
+-   `seq`: (Total Parent) Stockholders’ Equity (see [here](https://www.stock-analysis-on.net/Knowledge-Base/Stockholders-Equity-Attributable-to-Parent)).
+
+-   `at`: Total Assets (see [here](https://corporatefinanceinstitute.com/resources/commercial-lending/total-assets/)).
+
+-   `lt`: Total Liabilities (see [here](https://www.investopedia.com/terms/t/total-liabilities.asp)).
+
+-   `invt`: Inventories  (see [here](https://www.investopedia.com/terms/i/inventory.asp)).
+
+-   `rect`: (Accounts) Receivables (see [here](https://www.investopedia.com/terms/a/accountsreceivable.asp)).
+
+-   `wcap`: Working Capital (see [here](https://corporatefinanceinstitute.com/resources/financial-modeling/working-capital-formula/)).
+
+-   `mktval`: Market Value of Equity (see [here](https://www.investopedia.com/terms/m/market-value-of-equity.asp#)).
+
+Then a set of financial statements ratios, loosely inspired from those of the Desbois case study presented in class (r1 to r37, we keep Desbois presentation):
+
+Capitalization ratios:
+
+-   `r1`: Total Liabilities / Total Assets
+
+-   `r2`: Stockholders’ Equity / [Invested Capital](https://www.investopedia.com/terms/i/invested-capital.asp)
+
+-   `r3`: Current Liabilities / Total Liabilities
+
+-   `r4`: Current Liabilities / Total Assets
+
+-   `r5`: (Total Liabilities - Current Liabilities) / Total Assets
+
+Weight of the debt:
+
+-   `r6`: Total Liabilities / Gross Profit
+
+-   `r7`: (Total Liabilities - Current Liabilities) / Gross Profit
+
+-   `r8`: Current Liabilities / Gross Profit
+
+Liquidity:
+
+-   `r11`: Working Capital / Gross Profit
+
+-   `r12`: Working Capital / (Cost of Goods Sold - Interest Expense)
+
+-   `r14`: Current Liabilities / Current Assets
+
+Debt servicing:
+
+-   `r17`: Interest Expense / Total Liabilities
+
+-   `r18`: Interest Expense / Gross Profit
+
+-   `r21`: Interest Expense / EBITDA
+
+Capital profitability:
+
+-   `r24`: EBITA / Total Assets
+
+Earnings:
+
+-   `r28`: EBITA / Gross Profit
+
+-   `r30`: Net Income / Gross Profit
+
+-   `r32`: (EBITA - Interest Expense) / Gross Profit
+
+Productive activity:
+
+-   `r36`: (Total Assets - Current Assets) / Gross Profit
+
+-   `r37`: Gross Profit / Total Assets
+
+We load the data set and briefly inspect it:
+
+```{r}
+# loading data and inspecting it:
+data_fin_exam <- readRDS('data/data_fin_exam.rds')
+glimpse(data_fin_exam)
+```
+
+# Instructions
+
+-   The exam is open documents, open browser. If copying large chunks of codes from the browser, give a reference (link to website, stackoverflow, stats.stackexchange, copy ChatGPT Q/A in appendix etc). You can reuse code from the two first lessons hosted here: [https://github.com/louis-olive/teaching_Scoring/](https://github.com/louis-olive/teaching_Scoring/), click on Code/Download ZIP for the last version:
+
+![](../assets/github_repo.png)
+
+-   The first parts of the exam are to be performed in-class (**TO DO in-class** in the exam document). The in-class exam will last two hours (10:30-12:30).
+
+-   You must use the R programming language, preferably through RStudio. Your code for analysis should use one of the following formats: preferably quarto Markdown (.qmd, as done in the course), but you might prefer R Markdown (.Rmd) or an R file (.R).
+
+-   Packages that you may need besides `base R` and `stats` (`glm()`, `step()`) that have been used in the course include:
+
+`tidyverse`, `broom`, `class`, `ROCR`, `car`, `aod`, `rsample`, `bestglm`, `glmnet`, `glmnetUtils`, `splines`, `rpart`, `rpart.plot`, `ada`, `gbm`, `xgboost`
+
+
+You can install them using the following code (uncomment):
+```{r}
+# # UNCOMMENT IF NEEDED
+# # https://statsandr.com/blog/an-efficient-way-to-install-and-load-r-packages/
+# # Package names
+# packages <- c("tidyverse", "ROCR", "car", "aod", "broom", "rsample", "bestglm", 
+# "glmnet", "glmnetUtils", "splines")
+# 
+# # Install packages not yet installed
+# installed_packages <- packages %in% rownames(installed.packages())
+# if (any(installed_packages == FALSE)) {
+#   install.packages(packages[!installed_packages])
+# }
+# 
+# # Packages loading
+# invisible(lapply(packages, library, character.only = TRUE))
+# 
+# 
+# # Additional packages used throughout the course but not needed for the analysis
+# additional_packages <- c( "purrr", "pROC", "foreign", "patchwork", "class",
+# "scales", "rpart", "rpart.plot", "DescTools")
+```
+
+Check that it works on your computer before the course.
+
+-   For your report: either render a .html file of your analysis (when using .qmd/.Rmd) or provide a rich document with your text plus tables/plots of your analysis (.docx or .pdf). In case you don't want to work with markdown/notebooks, no recommendation but [LibreOffice](https://www.libreoffice.org/download/download-libreoffice/) is free and runs cross-platforms.
+
+-   The code file and report's general readability especially for the take home will impact the grading as well as the richness of their content (do not hesitate to comment on your intents, assumptions, findings, conclusions, especially in the take home part).
+
+-   The .html file for report should be readable in a standard web browser (Chrome, Safari, Firefox, Edge ...), alternatively .docx/.pdf should be valid. The .qmd/.Rmd/.R code file should run without errors (if something is not working as you wish, comment in the code with your intents). They should be posted before 12:30 on 2 October 2024 for the in-class part to my two email addresses `louis.olive@ut-capitole.fr`, `louis.olive@gmail.com` (in case the first one encounters issues) with subject `SCORING EXAM - YOUR NAME`. You can prepare your email in advance to save time at the end of exam. 
+
+-   Allow yourself at least 15 minutes before the end to check your .qmd/.Rmd/.R file is running and you have a readable report or code. If you finish before the end, and are happy with the result post me your code/report and take a well deserved rest!
+
+-   If you are not happy with some or all parts of the in-class analysis, you might complete/correct/improve it at home, if it improves your grading a maximum of half of points will be given (for each relevant improvement).
+
+-   For the take-home part the deadline is 9 October 2024 08:00.
+
+-   Regarding the grading:
+
+    -   50% of the total points for the in-class part, 50% for the at-home part
+    
+    -   in-class data analysis (40%): 15% / 5% / 10% / 10% of the total points for each parts: "Desbois" ratios, "Altman" ratios, Lasso on financial statements items and Models assessment on holdout dataset
+    -   in-class extra exercise (10%): simulating data and assessing boundary decisions
+
+You should follow the following plan in you report:
+
+# "Desbois" ratios (15% total points)
+
+**TO DO in-class**
+
+- First explore the data set using variables `Y` and `r1:r37``, for example:
+
+  -   providing descriptive statistics,
+
+  -   showing correlated features,
+
+  -   showing/plotting individual features "interaction" with the response variable
+
+  Visualizations are expected. 
+
+  After this step, you can remove observations (rows) from data if justified.
+  
+  You might also need to remove some feature variables is perfectly co-linear or any other reason.
+
+- Secondly fit a "full" logistic regression model (**full_model_desbois**) on the data set using variables `Y` and kept features from exploration step among `r1:r37`.
+
+- Then use stepwise logistic regression (forward or backward, using the penalization/criterion of your choice) (**stepwise_model_desbois**) on the data set using variables `Y` and kept features from exploration step among `r1:r37`.
+
+- Compare the  **full_model_desbois** and **stepwise_model_desbois** using a Likelihood Ratio Test (LRT),  ie test if **full_model_desbois** fits significantly better than the **stepwise_model_desbois**.
+
+- Compare predicted probabilities to observed probabilities for **stepwise_model_desbois** using either Hosmer & Lemeshow test or a Calibration Plot.
+
+
+# "Altman" ratios (5% total points)
+
+**TO DO in-class**
+
+- First, using the data set at hand, create new predictors closest as possible as Altman's Z-Score components (X1-X5) as shown below:
+
+![](../assets/altman_zscore.png)
+
+- Secondly, fit a logistic regression model **model_altman** using only these predictors, then:
+  - give an interpretation for the coefficient `X3 = EBIT / Total Assets`
+  - assess the "significance" of `X3 = EBIT / Total Assets` coefficient
+  - give a confidence interval for `X3 = EBIT / Total Assets`
+
+# Financial items / Lasso (10% total points)
+
+**TO DO in-class**
+
+- First explore the data set using variables `Y` and `capx:mktval`, for example:
+
+  -   providing descriptive statistics,
+
+  -   showing correlated features,
+
+  -   showing/plotting individual features "interaction" with the response variable
+
+  Visualizations are expected. 
+
+  After this step, you can remove observations (rows) from data if justified.
+  
+  You might also need to remove some feature variables is perfectly co-linear or any other reason.
+  
+- Secondly fit a "full" logistic regression model (**full_model_items**) on the data set using variables `Y` and kept features from last step among `capx:mktval`.
+
+- Then using function [`glmnet::cv.glmnet`](https://glmnet.stanford.edu/reference/cv.glmnet.html) or more conveniently `glmnetUtils::cv.glmnet` as shown in lesson 2 (for example in the cross-validation function defined at the end of the lesson): select a "best value" for the lasso parameter "lambda" giving a penalized model **lasso_model_items**.
+
+Functions `glmnet::cv.glmnet` / `glmnetUtils::cv.glmnet` fit the lasso path (ie multiple penalized models for multiple values of lambda) with the selection of the best lambda by K-Fold Cross-Validation (by default 10-fold) using a given criterion such as the AUC (`type.measure = "auc"`).
+
+The function computes two optimal values:
+`lambda.min` is the value of lambda that gives minimum mean Cross-validated criterion;
+`lambda.1se` is the value of lambda that gives the most regularized model (highest lambda) such that the Cross-validated criterion for this lambda is within one standard error of the minimum, it favours penalization/parsimony versus `lambda.min` (see [here](https://stats.stackexchange.com/questions/138569/why-is-lambda-within-one-standard-error-from-the-minimum-is-a-recommended-valu)).
+
+(example usage `model_cv_glmnet <- glmnetUtils::cv.glmnet(Y ~ ., data= YOUR_DATA, family="binomial", alpha=1, type.measure = "auc")`).
+
+By default the `predict` function for a `cv.glmnet` model uses `lambda.1se`, but we can specify any value of lambda, in particular `lambda.min`, also note that the predict function outputs a `matrix` (`predict` functions in `R`  outputs a vector in general) that might need to be converted to a vector (for latter use with `ROCR` package).
+
+(example usage `predicted_proba <- as.vector(predict(model_cv_glmnet, newdata = YOUR_(NEW)_DATA, s = model_cv_glmnet$lambda.1se, type = "response")`)
+  
+
+# Models assessment (10% total points)
+
+**TO DO in-class**
+
+You are given a holdout/testing data set to assess the preceding models.
+
+- First (if you have already completed the task) create the Altman's predictors for this data set.
+
+- Then plot the ROC Curves and compare the AUC of **full_model_desbois**, **stepwise_model_desbois**, **model_altman**, **full_model_items**, **lasso_model_items**
+
+We load the holdout/testing data set and briefly inspect it:
+
+```{r}
+# loading data and inspecting it:
+data_fin_holdout <- readRDS('data/data_fin_holdout.rds')
+glimpse(data_fin_holdout)
+```
+
+
+# Exercise: Simulation and boundary decision (10% total points)
+
+**TO DO in-class**
+
+Write a function simulating the following data set:
+
+-   Class 0: mixture (ie two buckets a,b chosen randomly with probability $\frac{1}{2}$) of Gaussian $\mu_{0a}=\begin{bmatrix} 1  \\ 4  \end{bmatrix}$ or $\mu_{0b}=\begin{bmatrix} 1  \\ -4  \end{bmatrix}$ and $\Sigma_{0a}=\Sigma_{0b}=\begin{bmatrix} 2 & 0 \\ 0 & 2 \end{bmatrix}$
+
+-   Class 1: Gaussian with $\mu_{1}=\begin{bmatrix} 4  \\ 0  \end{bmatrix}$ and $\Sigma_{1}=\begin{bmatrix} 2 & 0 \\ 0 & 4 \end{bmatrix}$
+
+Simulate a training test of 200 observations (100 for each Class 0/1).
+
+Simulate a testing test of 2000 observations (1000 for each Class 0/1).
+
+Fit a logistic regression (`Y ~ x1 + x2`) on the training set (**model1**). 
+
+Then a logistic regression model with interactions (`Y ~ x1 + x2 + I(x1*x2) + I(x1^2) + I(x2^2)`) (**model2**). 
+
+Assess the misclassification error on the testing set.
+
+Bonus **TO DO at home** (5% total points): derive the expression of the Bayes boundary decision, show it on a bivariate (x1, x2) plot together with training set and **model1**/**model2** boundary decisions.
+
