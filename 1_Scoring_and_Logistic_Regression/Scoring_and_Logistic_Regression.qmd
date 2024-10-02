@@ -152,13 +152,19 @@ $\eta(x)$ is called the regression function.
 
 Given $f$ a classifier:
 
-Using 0-1 loss definition: $$
+Using 0-1 loss definition: 
+
+$$
 \begin{align*}
 \mathrm R(f)  &= \mathbb{E}_{X,Y}[\ell(Y,f(X))] \\
 &=\mathbb{E}_{X,Y}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1} ] \\
 &= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\ 
 \end{align*}
-$$ Using "Tower Rule" conditioning on $X$ then using $\eta(X)$ definition: $$
+$$
+
+Using "Tower Rule" conditioning on $X$ then using $\eta(X)$ definition: 
+
+$$
 \begin{align*}
 &= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\ 
 &= \mathbb{E}_{X}[\mathbf 1_{f(X)=0}\mathbb{E}_{Y|X}[\mathbf 1_{Y=1}] + \mathbf 1_{f(X)=1} \mathbb{E}_{Y|X}[\mathbf 1_{Y=0}|X]] \\
@@ -166,7 +172,9 @@ $$ Using "Tower Rule" conditioning on $X$ then using $\eta(X)$ definition: $$
 &=\mathbb{E}_{X}[(1-\mathbf 1_{f(X)=1})\eta(X) + \mathbf 1_{f(X)=1} (1-\eta(X))] \\
 &=\mathbb{E}_{X}[(\mathbf 1_{f(X)=1}(1-2\eta(X))] + \mathbb{E}_{X}[\eta(X))] \\
 \end{align*}
-$$ To minimize the risk with respect to $f$:
+$$ 
+
+To minimize the risk with respect to $f$:
 
 -   if $1-2\eta(X) \leq0$ (ie $\eta(X) \geq \frac{1}{2}$), we need $f(X)=1$
 
@@ -567,7 +575,6 @@ scale_colour_manual(values = c("dodgerblue", "orange")) +
 theme_void()
 ```
 
-
 ```{r}
 logit_splines_add_tens_error_rate <- broom::augment(mixture_example_glm_splines_add_tens,
                                    data = data_mixture_example,
@@ -709,7 +716,6 @@ logit_binned_risk <- logit_binned_error_rate  %>%
 ```
 
 The empirical risk on testing set is `r round(logit_binned_risk, 3)`.
-
 
 ### K-Nearest Neighbors Algorithm
 
@@ -1279,9 +1285,9 @@ In the rest of the course we will be equally interested in binary classification
 
 Throughout the course, we will focus on two fundamental and complementary models: the Logistic Regression model and Decision Trees.
 
-Logistic Regression adopts a "probabilistic|discriminative" approach to model with a parametric law the conditional probability $Y|X$ and then estimate the parameters of the regression function.
+Logistic Regression adopts a "probabilistic\|discriminative" approach to model with a parametric law the conditional probability $Y|X$ and then estimate the parameters of the regression function.
 
-On the other hand, Decision Trees adopt a "machine learning" approach, aiming to minimize empirical risk. 
+On the other hand, Decision Trees adopt a "machine learning" approach, aiming to minimize empirical risk.
 
 These two models serve as the foundation elements for modern machine learning algorithm, making them essential components of the classification/scoring toolkit.
 
@@ -2041,8 +2047,7 @@ summary(germancredit_glm)
 
 The article @desbois2008 (available [here](https://csbigs.fr/index.php/csbigs/article/view/351) together with a sample data set) shows a complete case study around the detection of financial risks applicable to farm holdings. Linear Discriminant Analysis and Logistic Regression (plus stepwise variable selection) are used and ROC curves are used to compare the two methods.
 
-The data set uses a format specific to the SPSS software, but is readable from R using the `foreign` package.
-The case study by Desbois will be partly reproduced in the next lesson.
+The data set uses a format specific to the SPSS software, but is readable from R using the `foreign` package. The case study by Desbois will be partly reproduced in the next lesson.
 
 ```{r}
 #| code-fold: show
@@ -2299,7 +2304,7 @@ P_correctly_classified <- I_set %>%
 
 This is the same value we obtained with `ROCR` before using the command `performance`:
 
-```{{r}}
+```{r}
 auc_logit <- ROCR::performance(pred, measure = "auc")
 auc_logit <- auc_logit@y.values[[1]]
 ```
@@ -2307,7 +2312,6 @@ auc_logit <- auc_logit@y.values[[1]]
 ```{r}
 auc_logit
 ```
-
 
 ## Bayes classifier (Exercise 11.9 [@cornillon2019])
 
@@ -2325,8 +2329,7 @@ Y|X=x  & =\left\{
 \mathbf 1_{U>1}  & \textrm{if } x>0
 \end{array}\right.
 \end{align*}
-$$ 
-where $\mathcal U[a, b]$ denotes the uniform distribution on $[a,b]$ and $X$ and $U$ are assumed to be independent.
+$$ where $\mathcal U[a, b]$ denotes the uniform distribution on $[a,b]$ and $X$ and $U$ are assumed to be independent.
 
 Calculate the Bayes classifier and the Bayes risk.
 
@@ -2350,8 +2353,7 @@ f^*(x)=\left\{ \begin{array}{ll}
     1 &  \mbox{if } x>0\cr
     0 &  \mbox{if } x\leq 0\cr
 \end{array} \right.
-$$
-Bayes risk:
+$$ Bayes risk:
 
 $$\begin{align*}
   \mathbb{P}[f^{*}(X)\neq Y|X=x] & = \mathbb{P}[(f^{*}(X)\neq Y|X > 0]\mathbb{P}[X > 0] + \mathbb{P}[(f^{*}(X)\neq Y|X \leq 0]\mathbb{P}[X \leq 0] \\
@@ -2362,37 +2364,30 @@ $$\begin{align*}
   & = \frac{3}{20} \\
 \end{align*}$$
 
-
-
-
-
 ## Other simulated data sets
 
 Simulate other toy data sets, and plot decision boundaries for classifiers of your choice. For example:
 
 -   Data set 1:
     -   Class 0: mixture (ie two buckets a,b chosen randomly with probability $\frac{1}{2}$) of Gaussian $\mu_{0a}=\begin{bmatrix} 1  \\ 4  \end{bmatrix}$ or $\mu_{0b}=\begin{bmatrix} 1  \\ -4  \end{bmatrix}$ and $\Sigma_{0a}=\Sigma_{0b}=\begin{bmatrix} 2 & 0 \\ 0 & 2 \end{bmatrix}$
-    
+
     -   Class 1: Gaussian with $\mu_{1}=\begin{bmatrix} 4  \\ 0  \end{bmatrix}$ and $\Sigma_{1}=\begin{bmatrix} 2 & 0 \\ 0 & 4 \end{bmatrix}$
 
 LEFT AS AN EXERCISE TO PREPARE THE EXAM
 
 -   Data set 2 (using a "generative" approach, with same assumptions as QDA): Given $\mu_0$, $\mu_1$, $\Sigma_0$ and $\Sigma_1$ and $X$ having values in $\mathbb R^2$:
 
-    - $X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
+    -   $X|Y=0 \sim\mathcal N[\mu_0,\Sigma_0]$,
 
-    - $X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$ and $\mathbb{P}[Y=1]=\pi$
-    
-Linear|Quadratic Discriminant Analysis are well described in many books, for example in chapter 4, section 4.3 of @hastie2009 or [here](https://rich-d-wilkinson.github.io/MATH3030/8-lda.html#lda).
+    -   $X|Y=1 \sim\mathcal N[\mu_1,\Sigma_1]$ and $\mathbb{P}[Y=1]=\pi$
+
+Linear\|Quadratic Discriminant Analysis are well described in many books, for example in chapter 4, section 4.3 of @hastie2009 or [here](https://rich-d-wilkinson.github.io/MATH3030/8-lda.html#lda).
 
 Assuming we model each class (indexed by $k \in \{0, 1\}$) density as a multivariate Gaussian (in $\mathbb R^{d}$, here $d=2$):
 
-$$f_k(x) = \frac{1}{(2 \pi)^{d/2} |\Sigma_k|^{1/2}} \exp \left( - \frac{1}{2} (x - \mu_k)^T \Sigma_k^{-1} (x - \mu_k) \right)$$
-and knowing $\pi_k = \mathbb{P}[Y=k]$ we have:
+$$f_k(x) = \frac{1}{(2 \pi)^{d/2} |\Sigma_k|^{1/2}} \exp \left( - \frac{1}{2} (x - \mu_k)^T \Sigma_k^{-1} (x - \mu_k) \right)$$ and knowing $\pi_k = \mathbb{P}[Y=k]$ we have:
 
-$$\mathbb{P}[Y=k|X=x]=\frac{f_k(x)\pi_k}{\mathbb{P}[X=x]}$$
-Rewriting Bayes Classifier as: 
-$$
+$$\mathbb{P}[Y=k|X=x]=\frac{f_k(x)\pi_k}{\mathbb{P}[X=x]}$$ Rewriting Bayes Classifier as: $$
 f^*(x)=\left\{ \begin{array}{ll} 
     1 &  \mbox{if } \mathbb{P}[Y=1|X=x]\geq \mathbb{P}[Y=0|X=x]\cr
     0 &  \mbox{otherwise}\cr
@@ -2403,25 +2398,17 @@ The condition to predict $f^*(x)=1$ is:
 
 $$\frac{\mathbb{P}[Y=1|X=x]}{\mathbb{P}[Y=0|X=x]}=\frac{f_1(x)\pi_1}{f_0(x)\pi_0}\geq 1$$
 
-Or taking the log:
-$$\log(\frac{f_1(x)\pi_1}{f_0(x)\pi_0})\geq 0$$
-We have:
-$$\log(f_k(x)\pi_k)=\log f_k(x) + \log \pi_k =C -\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$
-Usually discriminant functions $\delta_k$ are defined as:
-$$\delta_k(x)=-\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$
-So the Bayes Classifier rewrites:
-$$
+Or taking the log: $$\log(\frac{f_1(x)\pi_1}{f_0(x)\pi_0})\geq 0$$ We have: $$\log(f_k(x)\pi_k)=\log f_k(x) + \log \pi_k =C -\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$ Usually discriminant functions $\delta_k$ are defined as: $$\delta_k(x)=-\frac{1}{2} \log |\Sigma_k| -\frac{1}{2} (x-\mu_k)^T \Sigma_k^{-1} (x-\mu_k)+\log \pi_k $$ So the Bayes Classifier rewrites: $$
 f^*(x)=\left\{ \begin{array}{ll} 
     1 &  \mbox{if } \delta_1(x)\geq \delta_0(x)\cr
     0 &  \mbox{otherwise}\cr
 \end{array} \right.
-$$
-The decision boundary is $\{x|\delta_1(x)=\delta_0(x)\}$. In the most general case ($\Sigma_1 \neq \Sigma_0$) and for $d=2$ this is the equation of a conic section.
+$$ The decision boundary is $\{x|\delta_1(x)=\delta_0(x)\}$. In the most general case ($\Sigma_1 \neq \Sigma_0$) and for $d=2$ this is the equation of a conic section.
 
 Below we experiment with various choices of $\mu_0,\Sigma_0, \mu_1,\Sigma_1$ and $\pi$ for the $d=2$ case.
 
 We plot the theoretical Bayes decision boundary (a conic, either ellipse, hyperbola or parabola) in purple together with the boundary decision of classifiers estimated on simulated data (LDA in red, QDA in grey, LDA/Logistic Regression with quadratic interactions in green/blue):
-    
+
 ```{r, warning=FALSE}
 # Class 1 parameters
 pi_1 <- 0.5
@@ -2537,8 +2524,9 @@ ggplot(class_dat) +
 
 
 ```
- 
+
 Slightly changing the centers and variances, here the LDA with quadratic interaction seem to better match the Bayes decision boundary:
+
 ```{r, warning=FALSE}
 #| code-fold: true
 # Class 1 parameters
@@ -2641,8 +2629,8 @@ ggplot(class_dat) +
 
 ```
 
- 
 Nearly separated classes:
+
 ```{r, warning=FALSE}
 #| code-fold: true
 # Class 1 parameters
@@ -2744,7 +2732,9 @@ ggplot(class_dat) +
   geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
 
 ```
+
 Adding imbalance (Prior probability: 80% Class 1)
+
 ```{r, warning=FALSE}
 #| code-fold: true
 # Class 1 parameters
@@ -2847,6 +2837,7 @@ ggplot(class_dat) +
   geom_contour(data = oracle_qda, aes(x=x1, y=x2, z = oracle), breaks = c(0), col = 'purple') 
 
 ```
+
 # References
 
 ::: {#refs}

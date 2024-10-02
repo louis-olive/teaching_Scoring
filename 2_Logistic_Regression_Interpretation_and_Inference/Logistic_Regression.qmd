@@ -1568,7 +1568,9 @@ res.pca = FactoMineR::PCA(don_desbois,
 
 FactoMineR::dimdesc(res.pca, axes=c(1,2))
 ```
-We visualize the farm holdings as a bivariate plot on the first two components  of PCA (based on financial ratios), we use illustrative variable Y (0=”healthy”; 1=”failing”):
+
+We visualize the farm holdings as a bivariate plot on the first two components of PCA (based on financial ratios), we use illustrative variable Y (0=”healthy”; 1=”failing”):
+
 ```{r}
 #| code-fold: true
 # Similar to Desbois Fig 2. 
@@ -1583,7 +1585,7 @@ FactoMineR::plot.PCA(res.pca, axes=c(1, 2), choix="ind", habillage=30, invisible
 
 This plot which is comparable with:
 
-![](images/desbois_pca.png){fig-align="center"} 
+![](images/desbois_pca.png){fig-align="center"}
 
 Looking at this plot Desbois concludes that a simple classifier can be devised using the first PCA coordinate a classifier (setting a threshold at $PC_1 > 0.02$):
 
@@ -1984,13 +1986,34 @@ names(lasso_result) <-  c("lambda", row.names(desbois_lasso$beta))
 lasso_result
 ```
 
-`glmnet` also provides an automatic and efficient procedure to select $\lambda$ implementing K-fold Cross-Validation (see next question for implementation of the method in general):
+`glmnet` also provides an automatic and efficient procedure to select $\lambda$ implementing K-fold Cross-Validation (see next question for an example implementation of the K-fold Cross-Validation method in general).
+
+Functions `glmnet::cv.glmnet` / `glmnetUtils::cv.glmnet` fit the lasso path (ie multiple penalized models for multiple values of lambda) with the selection of the best lambda by K-Fold Cross-Validation (by default 10-fold) using a given criterion such as the AUC (`type.measure = "auc"`).
+
+The function computes two optimal values: `lambda.min` is the value of lambda that gives minimum mean Cross-validated criterion; `lambda.1se` is the value of lambda that gives the most regularized model (highest lambda) such that the Cross-validated criterion is within one standard error of the minimum, it favours penalization/parsimony versus `lambda.min` (see [here](https://stats.stackexchange.com/questions/138569/why-is-lambda-within-one-standard-error-from-the-minimum-is-a-recommended-valu)).
 
 ```{r}
 #| code-fold: show
+
+# glmnet::cv.glmnet / glmnetUtils::cv.glmnet fit the lasso path (ie multiple penalized models for multiple values of lambda) 
+# with selection of the best lambda by cross-validation (by default 10-fold)
+# using a given criterion (type.measure = "auc")
 desbois_lasso_cv <- glmnetUtils::cv.glmnet(Y ~ ., data=don_desbois, family="binomial", alpha=1, type.measure = "auc")
+
+
+# We can extract model coefficients for lambda = lambda.1se
 lasso_coeffs <- coef(desbois_lasso_cv, s = "lambda.1se")
 data.frame(name = lasso_coeffs@Dimnames[[1]][lasso_coeffs@i + 1], coefficient = lasso_coeffs@x)
+```
+
+By default the `predict` function for a `cv.glmnet` model uses `lambda.1se`, but we can specify any value of lambda, in particular `lambda.min`, also note that the predict function outputs a `matrix` (`predict` functions in `R` outputs a vector in general):
+
+```{r}
+#| code-fold: show
+#| 
+tibble(one_se = as.vector(predict(desbois_lasso_cv, newdata = don_desbois, s = desbois_lasso_cv$lambda.1se, type = "response")),# specifying lambda = lambda.1se
+       min = as.vector(predict(desbois_lasso_cv, newdata = don_desbois, s = desbois_lasso_cv$lambda.min, type = "response")),# specifying lambda = lambda.min
+       default = as.vector(predict(desbois_lasso_cv, newdata = don_desbois,  type = "response"))) # by default lambda = lambda.1se for a cv.glmnet model
 ```
 
 ```{r}
@@ -2318,6 +2341,7 @@ res_list <- readRDS("res_list.rds")
 res_list[[1]]$auc
 res_list[[2]]$auc
 ```
+
 # References
 
 ::: {#refs}

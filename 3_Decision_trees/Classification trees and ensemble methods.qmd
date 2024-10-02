@@ -1057,13 +1057,38 @@ Then cross-validation is chosen to find and 'optimal' value of $\alpha$.
 
 Using the Desbois data set, build and draw a decision tree using `rpart`.
 
+
+```{r}
+
+
+```
+
+
 Compare a large tree and a smaller tree in terms of ROC/AUC/prediction on a testing set.
+
+
+```{r}
+
+```
+
 
 Try to understand the output of the `printcp` function.
 
+```{r}
+
+```
+
 Choose a terminal number of leafs and prune the tree using the `prune` function.
 
+```{r}
+
+```
+
 Select the optimal `cp` for your tree (you can use a plot) and compare to the large and small models in terms of AUC.
+
+```{r}
+
+```
 
 ### Exercice 2 (Inspired from A. Géron book)
 
@@ -1718,7 +1743,7 @@ f^*(x)&=\underset{f}{\operatorname{argmin}}\mathbb{E}[\ell(Y,f(x))|x]\\
       &=\frac{1}{2}\log(\frac{\mathbb{P}[Y=1|X=x)]}{\mathbb{P}[Y=-1|X=x)]})
 \end{align*}
 $$
-So the $f_M$ estimated by AdaBoost approximates half the log odds of the  data generating distribution $\mathbf P_{\mathrm X \times \mathrm Y}$.
+So the $f_M$ estimated by AdaBoost approximates half the log odds of the data generating distribution $\mathbf P_{\mathrm X \times \mathrm Y}$.
 
 Conversely: $\mathbb{P}[Y=1|X=x)]=\frac{e^{f^{*}(x)}}{e^{-f^{*}(x)}+e^{f^{*}(x)}}=\frac{1}{1+e^{-2f^{*}(x)}}$
 
@@ -1741,11 +1766,20 @@ $$
     -\log(1-\eta) &  \mbox{if } y = 0\cr
 \end{array} \right.
 $$
-Here the authors parameterize the binomial probabilities by:
+Here the authors parameterize the binomial probabilities using $f$ by:
 
-$p(x)=\frac{e^{f(x)}}{e^{f(x)}+e^{-f(x)}}=\frac{1}{1+e^{-2f(x)}}$
+$$
+p(x)=\frac{e^{f(x)}}{e^{f(x)}+e^{-f(x)}}=\frac{1}{1+e^{-2f(x)}}
+$$
 
-and introduce $Y' = \frac{Y+1}{2} \in \{0, 1\}$ for $Y \in \{-1, 1\}$.
+slighlty differently than the standard logistic regression model:
+
+$$
+p_{\beta}(x)=\sigma(x^T\beta) = = \frac{e^{x^T\beta}}{1+e^{x^T\beta}} = \frac{e^{f(x,\beta)}}{1+e^{f(x,\beta)}} = \frac{1}{1+e^{-f(x,\beta)}}  
+$$
+
+
+they introduce $Y' = \frac{Y+1}{2} \in \{0, 1\}$ for $Y \in \{-1, 1\}$.
 
 $$\begin{align*}
 \ell_{logistic}(Y',p(x)) &= -Y'\log(p(x))-(1-Y')\log(1-p(x)) \\
@@ -1762,6 +1796,17 @@ $$
     \log(1+e^{2f(x)}) &  \mbox{if } Y= -1\cr
 \end{array} = \log(1+e^{-2Yf(x)})\right.
 $$
+
+$f$ minimizing the Risk for logistic loss is also minimizing half the log-odds of $p$:
+
+$$
+\begin{align*}
+f^*(x)&=\underset{f}{\operatorname{argmin}}\mathbb{E}[\ell_{logistic}(Y,f(x))|x]\\
+      &=\underset{f}{\operatorname{argmin}}\mathbb{E}[\log(1+e^{-2Yf(x)})|x] \\
+      &=\frac{1}{2}\log(\frac{\mathbb{P}[Y=1|X=x)]}{\mathbb{P}[Y=-1|X=x)]})
+\end{align*}
+$$
+
 
 #### Convex surrogates for 0-1 loss [DRAFT]
 
@@ -1864,14 +1909,23 @@ f^m(x) = -\frac{\text{grad}^m(x)}{\text{hessian}^m(x)}
 $$
 
 
+
+
+
 ## Practical Implementations
 
-We first start by implementing the original Logitboost algorithm as described in @fht2000:
+### Original LogitBoost
+
+We first start by implementing the original LogitBoost algorithm as described in @fht2000:
 
 ![](images/logitboost_algo.png){fig-align="center"}
-It is a Forward Stagewise Additive Method, at each iteration a Newton step is perform, in the context of Decision Trees, this step is equivalent to fitting a Regression Tree on weighted residuals.
+It is a Forward Stagewise Additive Method, at each iteration a Newton step is performed, in the context of Decision Trees, this step is equivalent to fitting a Regression Tree on weighted residuals.
 
-We check our implementation against `xgboost`
+We check our implementation against `xgboost` in the context where our weak learner is a stump (ie decision trees with maximum depth 1).
+
+To do that, we ensure that `xgboost` is minimizing the logistic loss (`objective = "binary:logistic"`), and using stumps as weak learners (`max.depth = 1`), we also do not shrink the Gradient/Newton step (`eta = 1`) and do not use any penalties (see [here](https://xgboost.readthedocs.io/en/stable/parameter.html) for more details on `xgboost` parameters).
+
+We perform the comparison on the Mixture data set, for $6$ boosting iterations:
 
 ```{r}
 #| code-fold: show
@@ -1893,9 +1947,12 @@ xgb_deg <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
         min_child_weight = 0, 
         objective = "binary:logistic",
         lambda = 0,
-        # updater = "grow_colmaker",
         tree_method = "exact")
+```
 
+
+We extract here the fitted trees/stumps decision rules and node predictions using `xgboost`:
+```{r}
 xgb_trees <- xgb.dump(xgb_deg, with_stats = TRUE)
 
 (xgb_clean_tree <- tibble(stump = xgb_trees[seq(2, 4*(num_tree-1) + 2, 4)],
@@ -1916,9 +1973,11 @@ xgb_clean_tree %>% select(rule, left_pred, right_pred)
 # 4 f0<0.991148889     -0.412      0.533
 # 5 f0<-0.967202127     1.51      -0.158
 # 6 f1<-0.344325602    -1.13       0.136
+```
 
+We implement below the Logitboost algorithm for binary classification as described in @fht2000, using `rpart` decision trees as weak learners:
 
-
+```{r}
 # Implementing original Logitboost algorithm FHT2000 using rpart
 data_train <- data_mixture_example %>% mutate(Y=if_else(Y=="0", 0, 1))
 
@@ -2057,7 +2116,10 @@ p_test <- predict_original_logitboost(logitboost_mixture, data_train, 6)
 (sum(logitboost_mixture$probs))
 (sum(p_test))
 sum(p_test)==sum(logitboost_mixture$probs)
+```
 
+We compare below the `xgboost` predicted probabilities with our algorithm which are strictly equal up to the numerical precision:
+```{r}
 # Compare xgboost prediction (without penalties etc, and using stumps) 
 # with logitboost original fit on data_train
 pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
@@ -2066,8 +2128,7 @@ pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
 abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
 ```
 
-We show LogitBoost decision boundary, here after $100$ iterations using our version of the algorithm:
-
+We show below the LogitBoost decision boundary, here after $100$ iterations using our version of the algorithm:
 
 ```{r}
 #| code-fold: show
@@ -2123,7 +2184,7 @@ logitboost_error_rate <- bind_cols(new_mixture,
 
 ```
 
-Here after $20$ iterations using `xgboost`:
+Here after $100$ iterations using `xgboost`:
 
 ```{r}
 #| code-fold: show
@@ -2183,7 +2244,9 @@ grid <- bind_cols(grid, tibble(predict_logitboost = predict(xgboost_M, as.matrix
 
 
 
-Gradient Boosting version of LogitBoost
+### MART: Gradient Boosting version of LogitBoost
+
+https://stats.stackexchange.com/questions/444267/spelling-out-a-detail-in-the-gradient-boosting-machine-algorithm-for-binary-clas
 
 ![](images/mart_algo1.png){fig-align="center"}
 
@@ -2385,7 +2448,8 @@ p_test <- predict_l01_treeboost(gbt_mixtures, data_train, 6)
 
 ```
 
-MART decision boundary
+MART decision boundaries for various number of boosting iterations:
+
 
 ```{r}
 tree_number <- 100
@@ -2437,6 +2501,7 @@ mart_error_rate <- bind_cols(new_mixture,
     summarise(l01 = mean(l01)) %>% 
     pull(l01))
 ```
+
 ```{r}
 tree_number_predict <- 50
 
@@ -2488,7 +2553,7 @@ Train / Test curves for AdaBoost, LogitBoost and MART
 
 We vary the number of tree fitted $M$ and show the empirical risks on training and testing sets together with Bayes risk:
 
-We estimate Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots).
+We estimate the Bayes risk on the testing data set simulated before (10k BLUE/ORANGE dots).
 
 ```{r}
 bayes_error_rate <- new_mixture %>%
@@ -2510,7 +2575,7 @@ bayes_train_risk <- bayes_error_rate_train %>%
         pull(l01)
 ```
 
-Comparing Adaboost, Logitboost, Mart (Gradient Boosting version of Logitboost):
+We compare below AdaBoost, LogitBoost, MART (Gradient Boosting version of LogitBoost) algorithms in terms of testing set misclassification:
 
 ```{r}
 tree_number <- 400
@@ -2621,118 +2686,17 @@ misclass_plot <- bind_rows(misclass_curve) %>%
 
 
 
-TODO comparing for various values of shrink / learning rate parameter
+### Exercise
+Compare testing error on reference data set for various: gradient boosting algorithm / number of boosting iterations / shrink-learning rate parameters (see for example [here](https://scikit-learn.org/1.5/auto_examples/ensemble/plot_gradient_boosting_regularization.html)).
+
 
 ```{r}
-tree_number <- 400
 
-M = c(seq(1, as.integer(tree_number/4), 2),
-      seq(as.integer(tree_number/4), as.integer(tree_number/2), 10),
-      seq(as.integer(tree_number/2), tree_number, 20))
-
-misclass_curve <- list()
-
-logitboost_M <- fit_original_logitboost(data_train, tree_number, FALSE)
-adaboost_M <- fit_original_adaboost(data_ada, tree_number, FALSE)
-mart_M <- fit_l01_treeboost(data_train, tree_number, shrink = 1, FALSE)
-
-for (m in M){
-    
-  logitboost_error_rate_train <- bind_cols(data_train,
-                             tibble(class_train = predict_original_logitboost(logitboost_M, data_train, num_tree = m)) %>%
-                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
-                              mutate(l01_train = if_else(Y==class_train, 0, 1))
-  
-  mart_error_rate_train <- bind_cols(data_train,
-                             tibble(class_train = predict_l01_treeboost(mart_M, data_train, num_tree = m)) %>%
-                               mutate(class_train = if_else(class_train > 0.5, 1, 0))) %>%
-                              mutate(l01_train = if_else(Y==class_train, 0, 1))
-  
-  adaboost_error_rate_train <- bind_cols(data_train,
-                             tibble(class_train = predict_original_adaboost(adaboost_M, data_ada, num_tree = m)) %>%
-                                mutate(class_train = if_else(class_train > 0, 1, 0))) %>%
-                              mutate(l01_train = if_else(Y==class_train, 0, 1))
-  
-  logitboost_error_rate_test <- bind_cols(new_mixture,
-                             tibble(class_test = predict_original_logitboost(logitboost_M, new_mixture, num_tree = m)) %>%
-                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
-                              mutate(Y = if_else(Y == "BLUE", 0, 1),
-                                     l01_test = if_else(Y==class_test, 0, 1))
-  
-  adaboost_error_rate_test <- bind_cols(new_mixture,
-                             tibble(class_test = predict_original_adaboost(adaboost_M, new_mixture, num_tree = m))%>%
-                               mutate(class_test = if_else(class_test > 0, 1, 0))) %>%
-                              mutate(Y = if_else(Y == "BLUE", 0, 1),
-                                     l01_test = if_else(Y==class_test, 0, 1))
-  
-  mart_error_rate_test <- bind_cols(new_mixture,
-                             tibble(class_test = predict_l01_treeboost(mart_M, new_mixture, num_tree = m)) %>%
-                               mutate(class_test = if_else(class_test > 0.5, 1, 0))) %>%
-                              mutate(Y = if_else(Y == "BLUE", 0, 1),
-                                     l01_test = if_else(Y==class_test, 0, 1))
-  
-  (logitboost_risk_train <- logitboost_error_rate_train  %>%
-      summarise(l01_train = mean(l01_train)) %>% 
-      pull(l01_train))
-  
-  (logitboost_risk_test <- logitboost_error_rate_test  %>%
-    summarise(l01_test = mean(l01_test)) %>% 
-    pull(l01_test))
-
-  (adaboost_risk_train <- adaboost_error_rate_train  %>%
-    summarise(l01_train = mean(l01_train)) %>% 
-    pull(l01_train))
-  
-  (adaboost_risk_test <- adaboost_error_rate_test  %>%
-      summarise(l01_test = mean(l01_test)) %>% 
-      pull(l01_test))
-  
-  (mart_risk_train <- mart_error_rate_train  %>%
-    summarise(l01_train = mean(l01_train)) %>% 
-    pull(l01_train))
-  
-  (mart_risk_test <- mart_error_rate_test  %>%
-      summarise(l01_test = mean(l01_test)) %>% 
-      pull(l01_test))
-    
-  misclass_curve[[m]] <- tibble(`m - Number of Boosted Trees` = m,
-                                    `Boosting: Logitboost train` = logitboost_risk_train,
-                                    `Boosting: Logitboost test` = logitboost_risk_test,
-                                    `Boosting: MART train` = mart_risk_train,
-                                    `Boosting: MART test` = mart_risk_test,
-                                    `Boosting: Adaboost train` = adaboost_risk_train,
-                                    `Boosting: Adaboost test` = adaboost_risk_test)
-    
-}
-
-misclass_plot <- bind_rows(misclass_curve) %>% 
-    mutate(`Bayes test` = bayes_test_risk,
-           `Bayes train` = bayes_train_risk) %>% 
-    pivot_longer(-`m - Number of Boosted Trees`,
-                 names_to = "Model data",
-                 values_to = "Prediction Error")
-
-
-ggplot(misclass_plot) +
-geom_line(aes(x = `m - Number of Boosted Trees`,
-              y = `Prediction Error`,
-              col = as.factor(`Model data`),
-              linetype = as.factor(`Model data`) )) +
-scale_colour_manual(values = c("Bayes test" = "purple", "Bayes train" = "green",
-                               "Boosting: Logitboost test" = "orange", "Boosting: Logitboost train" = "dodgerblue",
-                               "Boosting: MART test" = "orange", "Boosting: MART train" = "dodgerblue",
-                               "Boosting: Adaboost test" = "orange", "Boosting: Adaboost train" = "dodgerblue" )) +
-scale_linetype_manual(values = c("Bayes test" = 1, "Bayes train" = 1,
-                               "Boosting: Logitboost test" = 1, "Boosting: Logitboost train" = 1,
-                                "Boosting: MART test" = 2, "Boosting: MART train" = 2,
-                               "Boosting: Adaboost test" = 3, "Boosting: Adaboost train" = 3)) +
-theme_bw() +
-labs(col = NULL, linetype=NULL)
 ```
 
-## Ping Li Robust Logitboost formula
+### Ping Li Robust LogitBoost
 
-We then investigate a more recent version of LogitBoost algorithm, allowing to close the gap between the original @fht2000 and the more recent and state of the art `xgboost` @xgboost2016.
+We then investigate a more recent version of LogitBoost algorithm, allowing to partially bridge the gap between the original @fht2000 and the more recent and state of the art `xgboost` implementation @xgboost2016.
 
 ![](images/robust_logitboost_algo.png){fig-align="center"}
 
@@ -2740,15 +2704,16 @@ We then investigate a more recent version of LogitBoost algorithm, allowing to c
 
 ![](images/robust_logitboost_gain2.png){fig-align="center"}
 ![](images/xgboost_gain.png){fig-align="center"}
-The underlying idea common to both Robust LogitBoost and `xgboost` is to take advantage of some simplifications that occur for Gradient Boosting / Newton methods when base learners are Decision Trees. In particular it is possible to show that the problem is equivalent to fitting a Decision Tree using a novel splitting formula, more precisely using a Sum of Squares criterion (Regression tree) involving the gradient and the hessian of any convex loss.
+The underlying idea common to both Robust LogitBoost and `xgboost` is to take advantage of some simplifications that occur for Gradient Boosting / Newton methods when base learners are Decision Trees. In particular it is possible to show that the problem is equivalent to fitting a Decision Tree using a novel splitting criterion or gain, more precisely using a Sum of Squares criterion (Regression tree) involving the gradient and the hessian of any convex loss.
 
-In the @hastie2009, authors suggest that AdaBoost or any comparable FSAM can be fitted using specialized trees (ie specific gain used to split), but prefer to follow the approach of Friedman's Gradient Boosting:
+In the @hastie2009, authors suggest that AdaBoost or any comparable FSAM can be fitted using specialized trees (ie specific gain used to split), but prefer to follow the approach of Friedman's Gradient Boosting which at that time was supposed more robust and straightforward:
 ![](images/ESL_specialized_trees.png){fig-align="center"}
 
+We implement here the Ping Li Robust LogitBoost method, re-using our implementation from scratch of a Decision Tree at the start of the course.
 
-We implement here the Ping Li Robust LogitBoost method, re-using our implementation of a Decision Tree at the start of the course.
+By slightly modifying the implementation, 
 
-First defining specialized `xgboost` / Robust LogitBoost gains (using Gradient, Hessian, $\lambda$):
+First we define specialized `xgboost` / Robust LogitBoost gains (using Gradient, Hessian, $\lambda$):
 ```{r}
 #| code-fold: show
 xgboost_gain <- function(tbl, y, verbose = FALSE){
@@ -2763,7 +2728,7 @@ xgboost_gain <- function(tbl, y, verbose = FALSE){
 }
 ```
 
-Then slightly modifying the other functions to adapt the problem to a regression (the implementation at the start of the lesson was dedicated to binary classification problem):
+Then we slightly modify the other involved functions to adapt the problem to a regression setting (the implementation at the start of the lesson was dedicated to binary classification problem):
 
 ```{r}
 #| code-fold: show
@@ -2827,6 +2792,8 @@ max_gain <- function(tbl_node, y_name, x_names, min_leaf = 5, midpoint = FALSE){
 }
 ```
 
+We show below how the best split is performed for a single node using the new criterion / gain:
+
 ```{r}
 # add pro/hessian, parameters columns for xgboost method
 tbl_node <- data_mixture_example %>%
@@ -2856,6 +2823,10 @@ We plot for variables $x_1$ and $x_2$ the `xgboost` gain for each possible split
 ```{r}
 ggplot(test , aes(x=split_rule, y =imp_total, col = feature_split)) + geom_point()
 ```
+
+
+Then we initialize the root/parent node for the mixture data set in the context of Gradient/Newton boosting
+
 ```{r}
 #| code-fold: show
 tbl_node <- data_mixture_example %>%
@@ -2881,7 +2852,7 @@ node <- list("data" = tbl_node,
              "value" = 666)
 ```
 
-We define a `break_at_boost` function implementing the best split for a given node and returning the splitting rule (variable to split, split value):
+We define a `break_at_boost` function implementing the Robust Logitboost / `xgboost` best split for a given node and returning the splitting rule (variable to split, split value):
 
 ```{r}
 #| code-fold: show
@@ -2984,6 +2955,8 @@ grow_decision_tree_boost <- function(node, depth = 1, max_depth = 2, min_leaf = 
 }
 ```
 
+
+We also define a recursive function to print the decision tree (a plot would be better):
 ```{r}
 #| code-fold: show
 # Recursive function to print tree
@@ -3013,7 +2986,7 @@ print_regression_tree <- function(grown_tree, shift ='', precision = 3){
 }
 ```
 
-We test the recursive algorithm on the mixture data set (using stumps, ie `max_depth` = 1): 
+We then test the recursive algorithm on the mixture data set (using stumps, ie `max_depth` = 1): 
 ```{r}
 mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 1, min_leaf = 1, midpoint = TRUE)
 ```
@@ -3022,9 +2995,9 @@ mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 1, min_leaf = 1
 print_regression_tree(mixture_node_boost)
 ```
 
-Our toy implementation of Robust Logitboost agrees with xgboost in terms of base learners fitted:
+Our toy implementation of Robust Logitboost agrees with `xgboost` in terms of base/weak learners fitted:
 
-Checking for depth 1 weak learners:
+Comparing with `xgboost` for depth 1 weak learners:
 
 ```{r}
 xgb_depth2 <- xgboost(data = as.matrix(data_mixture_example %>% select(x1, x2)),
@@ -3043,7 +3016,7 @@ xgb_trees_depth2 <- xgb.dump(xgb_depth2, with_stats = TRUE)
 xgb_trees_depth2[1:4]
 ```
 
-Checking for depth 2 weak learners:
+Comparing with `xgboost` for depth 2 weak learners:
 ```{r}
 mixture_node_boost <- grow_decision_tree_boost(node, max_depth = 2, min_leaf = 1, midpoint = TRUE)
 print_regression_tree(mixture_node_boost)
@@ -3093,7 +3066,7 @@ build_regression_tree_rule <- function(grown_tree, list_rules){
 }
 ```
 
-We define here a function
+We define here a function to extract decision rules at each split, it is the first brick to obtain prediction on new data with the fitted tree:
 
 ```{r}
 #| code-fold: show
@@ -3139,8 +3112,8 @@ data_train %>%
 }
 ```
 
-Implementing Ping Li's robust logitboost (ie almost xgboost)
-```{R}
+Finally implementing Ping Li's Robust Logitboost (ie `xgboost` without penalization and without many numerical optimizations) by succesively fitting weak learners using specific criterion/gain to split:
+```{r}
 fit_robust_logitboost <- function(data_train, M, min_leaf=1, max_depth = 1, lambda=0, verbose=FALSE){
   # expect data with Y column in {0, 1}, with only additional predictors (as we will use formula Y ~ .)
   # should test unique(data %>% pull(Y)) == c(0, 1) and classs(data %>% pull(Y)) is numeric
@@ -3260,15 +3233,7 @@ pred_xgb <- predict(xgb_deg, as.matrix(data_mixture_example %>% select(x1, x2)))
 abs(sum(pred_xgb)-sum(logitboost_mixture$probs))<1e-6
 ```
 
-```{r}
 
-```
-
-
-
-```{r}
-#https://scikit-learn.org/stable/auto_examples/ensemble/plot_gradient_boosting_regularization.html#sphx-glr-auto-examples-ensemble-plot-gradient-boosting-regularization-py
-```
 
 ## Appendix
 
@@ -3462,13 +3427,7 @@ Showing importance of trees
 Using learning rate eta <1 improves testing error
 
 plus introduction of Relative importance of input variables and PDP (Partial dependence plots)
-<!--  in the original CART 5.2.2  --- -->
 
-<!-- In some data, the classes are naturally separated by hyperplanes not perpendicular to the coordinate axes. These problems are difficult for the unmodified tree structured procedure and result in large trees as the algorithm attempts to approximate the hyperplanes by multidimensional rectangular regions. To cope with such situations, the basic structure has been enhanced to allow a search for best splits over linear combinations of variables.--- -->
-
-<!--  4.6 The use of Gini impurity measure is justified --- -->
-
-<!--  https://stats.stackexchange.com/questions/4356/does-rpart-use-multivariate-splits-by-default --- -->
 
 # References
 

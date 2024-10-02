@@ -278,13 +278,16 @@ Proof
 <div id="callout-1" class="callout-1-contents callout-collapse collapse">
 <div class="callout-body-container callout-body">
 <p>Given <span class="math inline">\(f\)</span> a classifier:</p>
-<p>Using 0-1 loss definition: <span class="math display">\[
+<p>Using 0-1 loss definition:</p>
+<p><span class="math display">\[
 \begin{align*}
 \mathrm R(f)  &amp;= \mathbb{E}_{X,Y}[\ell(Y,f(X))] \\
 &amp;=\mathbb{E}_{X,Y}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1} ] \\
 &amp;= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\
 \end{align*}
-\]</span> Using “Tower Rule” conditioning on <span class="math inline">\(X\)</span> then using <span class="math inline">\(\eta(X)\)</span> definition: <span class="math display">\[
+\]</span></p>
+<p>Using “Tower Rule” conditioning on <span class="math inline">\(X\)</span> then using <span class="math inline">\(\eta(X)\)</span> definition:</p>
+<p><span class="math display">\[
 \begin{align*}
 &amp;= \mathbb{E}_{X}[\mathbb{E}_{Y|X}[\mathbf 1_{Y=1} \mathbf 1_{f(X)=0} + \mathbf 1_{Y=0} \mathbf 1_{f(X)=1}|X]]  \\
 &amp;= \mathbb{E}_{X}[\mathbf 1_{f(X)=0}\mathbb{E}_{Y|X}[\mathbf 1_{Y=1}] + \mathbf 1_{f(X)=1} \mathbb{E}_{Y|X}[\mathbf 1_{Y=0}|X]] \\
@@ -292,7 +295,8 @@ Proof
 &amp;=\mathbb{E}_{X}[(1-\mathbf 1_{f(X)=1})\eta(X) + \mathbf 1_{f(X)=1} (1-\eta(X))] \\
 &amp;=\mathbb{E}_{X}[(\mathbf 1_{f(X)=1}(1-2\eta(X))] + \mathbb{E}_{X}[\eta(X))] \\
 \end{align*}
-\]</span> To minimize the risk with respect to <span class="math inline">\(f\)</span>:</p>
+\]</span></p>
+<p>To minimize the risk with respect to <span class="math inline">\(f\)</span>:</p>
 <ul>
 <li><p>if <span class="math inline">\(1-2\eta(X) \leq0\)</span> (ie <span class="math inline">\(\eta(X) \geq \frac{1}{2}\)</span>), we need <span class="math inline">\(f(X)=1\)</span></p></li>
 <li><p>if <span class="math inline">\(1-2\eta(X) \geq0\)</span> (ie <span class="math inline">\(\eta(X) \leq \frac{1}{2}\)</span>), we need <span class="math inline">\(f(X)=0\)</span></p></li>
@@ -2922,17 +2926,20 @@ Number of Fisher Scoring iterations: 4</code></pre>
 </div>
 </div>
 <p>This is the same value we obtained with <code>ROCR</code> before using the command <code>performance</code>:</p>
-<div class="sourceCode" id="cb73"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>auc_logit <span class="ot">&lt;-</span> ROCR<span class="sc">::</span><span class="fu">performance</span>(pred, <span class="at">measure =</span> <span class="st">"auc"</span>)</span>
-<span id="cb73-3"><a href="#cb73-3" aria-hidden="true" tabindex="-1"></a>auc_logit <span class="ot">&lt;-</span> auc_logit<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span>
-<span id="cb73-4"><a href="#cb73-4" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell">
+<details>
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb73"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>auc_logit <span class="ot">&lt;-</span> ROCR<span class="sc">::</span><span class="fu">performance</span>(pred, <span class="at">measure =</span> <span class="st">"auc"</span>)</span>
+<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>auc_logit <span class="ot">&lt;-</span> auc_logit<span class="sc">@</span>y.values[[<span class="dv">1</span>]]</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
 <div class="cell">
 <details>
 <summary>Code</summary>
 <div class="sourceCode cell-code" id="cb74"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb74-1"><a href="#cb74-1" aria-hidden="true" tabindex="-1"></a>auc_logit</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] 0.789759</code></pre>
+<pre><code>[1] 0.7822882</code></pre>
 </div>
 </div>
 </section>
@@ -3134,7 +3141,7 @@ f^*(x)=\left\{ \begin{array}{ll}
 <span id="cb78-65"><a href="#cb78-65" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_contour</span>(<span class="at">data =</span> oracle_qda, <span class="fu">aes</span>(<span class="at">x=</span>x1, <span class="at">y=</span>x2, <span class="at">z =</span> oracle), <span class="at">breaks =</span> <span class="fu">c</span>(<span class="dv">0</span>), <span class="at">col =</span> <span class="st">'purple'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-65-1.png" class="img-fluid" width="672"></p>
+<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-66-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
 <p>Slightly changing the centers and variances, here the LDA with quadratic interaction seem to better match the Bayes decision boundary:</p>
@@ -3245,7 +3252,7 @@ f^*(x)=\left\{ \begin{array}{ll}
 <span id="cb81-51"><a href="#cb81-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_contour</span>(<span class="at">data =</span> oracle_qda, <span class="fu">aes</span>(<span class="at">x=</span>x1, <span class="at">y=</span>x2, <span class="at">z =</span> oracle), <span class="at">breaks =</span> <span class="fu">c</span>(<span class="dv">0</span>), <span class="at">col =</span> <span class="st">'purple'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-66-1.png" class="img-fluid" width="672"></p>
+<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-67-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
 <p>Nearly separated classes:</p>
@@ -3356,7 +3363,7 @@ f^*(x)=\left\{ \begin{array}{ll}
 <span id="cb84-51"><a href="#cb84-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_contour</span>(<span class="at">data =</span> oracle_qda, <span class="fu">aes</span>(<span class="at">x=</span>x1, <span class="at">y=</span>x2, <span class="at">z =</span> oracle), <span class="at">breaks =</span> <span class="fu">c</span>(<span class="dv">0</span>), <span class="at">col =</span> <span class="st">'purple'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-67-1.png" class="img-fluid" width="672"></p>
+<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-68-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
 <p>Adding imbalance (Prior probability: 80% Class 1)</p>
@@ -3468,7 +3475,7 @@ f^*(x)=\left\{ \begin{array}{ll}
 <span id="cb87-51"><a href="#cb87-51" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_contour</span>(<span class="at">data =</span> oracle_qda, <span class="fu">aes</span>(<span class="at">x=</span>x1, <span class="at">y=</span>x2, <span class="at">z =</span> oracle), <span class="at">breaks =</span> <span class="fu">c</span>(<span class="dv">0</span>), <span class="at">col =</span> <span class="st">'purple'</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </details>
 <div class="cell-output-display">
-<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-68-1.png" class="img-fluid" width="672"></p>
+<p><img src="Scoring_and_Logistic_Regression_files/figure-html/unnamed-chunk-69-1.png" class="img-fluid" width="672"></p>
 </div>
 </div>
 </section>
